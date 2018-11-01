@@ -1,0 +1,190 @@
+Release: SSD v6 GA
+Released: 27 July 2018 
+
+****************************************
+OVERVIEW OF RELEASE
+****************************************
+
+Version 6 of the consolidated Services Standard Deployment (SSD) contains a number of new
+components, enhancements and fixes.
+
+
+****************************************
+NEW TO THIS RELEASE:
+****************************************
+
+SSB: 
+    - The OWASP Dependency Check tool, which can report on known vulnerabilities in third-
+      party libraries, is now included in the SSB.  This self-updating tool can check the 
+      libraries that ship with IdentityIQ as well as those which are added to the build by
+      implementers.
+    - Ability to manage the deployment of site-specific encryption keys as part of the
+      build process.
+    - Support for 'includefiles' functionality which allows specifying the XML files that
+      should be included in a 'subset build'.  This is useful for times when it is not
+      necessary to deploy a full build but just update specific XML objects.
+    - Enhancements to SSB Build Checks:
+         Detect deprecations in non-public APIs
+         Handle nested imports in BeanShell when detecting deprecations
+         Check for workflows which have trace enabled
+         Reduced console logging for improved presentation
+    - Expansion of efixes in the order they were created to avoid conflicts when two
+      different versions of the same file are included in separate efixes.
+    - 'Secret' target.properties for keeping sensitive token values separate from the main
+      target.properties file so they can be stored outside of the code repository.
+
+Please refer to the SSB User Guide for more information on the above features.
+
+SSF Tools:
+    - LogiPlex connector - a new connector that combines some of the functionality of the
+      Logical connector and the Multiplex application type.  Useful for managing 
+      applications that are based on subsets of another applications, such as an 
+      application whose access is defined by Active Directory groups.  This connector 
+      performs well with large numbers of applications and entitlements and may be 
+      considered an alternative to the Logical connector for certain use cases.  Please 
+      refer to the LogiPlex Connector User Guide for details.
+    - IdentityIQ Summarizer tool - produces a summary of the configuration of a number of 
+      object types that are typically part of an IdentityIQ deployment. The summary is in
+      the form of an Excel spreadsheet.  Please refer to the IdenitityIQ Summarizer User
+      Guide.
+    - Mock Integration Executor - simulates creation of tickets in a ticketing system by 
+      writing to and querying a Custom object that maintains a map of ticket numbers and 
+      statuses.  Useful for developers who need to build a solution for ticketing 
+      integration but don't have a sandbox instance of the ticketing system.  Please refer
+      to the Mock Integration Executor User Guide for further information.
+    - Object Exporter enhancement - ability to remove statistical metadata from 
+      TaskDefinitions and Applications.
+    - Loopback connector enhancements - allows the use of password resets and password 
+      management when internal IdentityIQ authentication is being used.
+    - Email Template Editor enhancement - allows use of color controls when creating and
+      editing HTML email templates.
+
+SST Tools:
+    - JUnit Helper enhancements:
+         Can now manage IdentityIQ sessions on a per-test basis or per-Class.  This means
+         that IdentityIQ instances will only be spun up as required to improve performance.
+         Added a Factory class to allow developers to access the context themselves, with 
+         the added responsibility of shutting the instance down once they have done their
+         work.
+ 
+Bugs fixed since SSD v5 GA
+
+ - Enhanced Email Notifier Task Executor was using the STMP email notifier class directly
+   when redirects were in use (SSDBUGS-186)
+ - MySQL 'warnings' and 'nowarning' statements were causing createdb failures in 
+   IdentityIQ 7.3 (SSDBUGS-185)
+ - When using SSF AttributeSync with Mover or Rehire, applications configured as excluded
+   were being processed (SSDBUGS-144)
+ - SSF Attribute Synch isNewLinkChanged method sometimes returned incorrect result, 
+   preventing trigger firing (SSDBUGS-163)
+ - SSF Common Rules Library was sharing its logger with Mover, causing unexpected logging
+   issues (SSDBUGS-184)
+ - SSF Attribute Synch was not working with applications that have a Reference Policy Form
+   (SSDBUGS-153)
+ - SSF Role Assignment Framework check was not skipping disabled roles when adding them in
+   some cases (SSDBUGS-135)
+ - SSF Role Assignment Framework was overwriting birthright roles rather than adding them
+   (SSDBUGS-109)
+ - Potential XML Entity Expansion vulnerability in the Generic Importer fixed 
+   (SSDBUGS-177)
+ - Potential XML Entity Expansion vulnerability in the SSB Build Checks fixed 
+   (SSDBUGS-178)
+ - SSF Leaver was sometimes failing when calling sunset workflow (SSDBUGS-167)
+ - Approval Framework was not removing entitlements for a remove request when 
+   cstPreApprovalDefaultSplitterRule method was being used (SSDBUGS-159)
+ - SSF TerminateIdentity Rules Library had some incorrect variable names causing it to 
+   fail (SSDBUGS-165)
+ - SSF Mover certification launch was failing for partitioned identity refresh 
+   (SSDBUGS-176)
+ - SSF Mover and Approval were using an incorrect Java method for getting boolean values
+   (SSDBUGS-171)
+ - Access Request Attachments deployment was sometimes writing configuration to web.xml 
+   when it already existed (SSDBUGS-169)
+ - SSF ProvisionProcessor threw a NPE when there was a PolicyViolation (SSDBUGS-175)
+ - SSF Approval Framework: role removal work items were missing required entries, causing
+   NPE (SSDBUGS-170)
+ - Typo corrected in logger for SSF Approval Framework Rule Library (SSDBUGS-157)
+ - SSF Approval Framework checkItemRequiresApproval method was returning incorrect result
+   (SSDBUGS-156)
+ - Email Template Editor - fixed color picker (SSDBUGS-172)
+ - Compilation of WorkgroupImporter and ManualCorrelationImporter was failing when 
+   building against IdentityIQ 7.3 (SSDBUGS-179)
+ - Enhanced Email Notifier was not honoring the email redirection settings (SSDBUGS-145)
+ - JUnit Helper was not initializing in IdentityIQ 7.2 (SSDBUGS-150)
+ - New Custom object for the SSF Field Value Framework was not being correctly deployed 
+   (SSDBUGS-151)
+ - Calling a rule from a script tag in the SSF Field Value Framework was not working 
+   (SSDBUGS-147)
+ - Logging was not working in SSF Mover workflow (SSDBUGS-146)
+ - Replaced hard coded values in SSF Role Assignment Framework rule library with tokens 
+   (SSDBUGS-148)
+ - Added missing deployCertificationCloser property in build.properties (SSDBUGS-152)
+ - Corrected misleading logging statement in SSF Leaver rule library (SSDBUGS-154)
+   
+ 
+****************************************
+NOTES
+****************************************
+
+JDK version 6 is no longer supported in the SSB/SSD.  Please use JDK 7 or 8.
+
+To assist the SailPoint Support team, the version of the SSB or SSD used to build 
+IdentityIQ can now be seen by accessing the ServicesStandardVersion.html file at the root
+of the application (e.g. http://servername:8080/ServicesStandardVersion.html).  This
+information is taken from these release notes, so please do not delete this file or move
+it from its current location, and do not delete the html file that is generated during the
+build process.  The page also includes a timestamp indicating the last time the build was
+executed.
+
+SSF provisioning now runs in the background by default for all the SSF features, which
+means provisioning will not happen until the next time the Perform Maintenance task runs.
+This is the recommended setting to avoid identity locking conflicts during identity 
+refreshes.
+
+If you are currently using a version of the SSF features and frameworks from SSD v1.1 or
+earlier there is no simple upgrade procedure for these components.  An upgrade would be a
+more in-depth exercise carried out by a trained and experienced IdentityIQ implementer.
+
+****************************************
+SUMMARY OF SSD
+****************************************
+
+The SSD consists of the following packages:
+
+Services Standard Build (SSB) - Standard packaging and build process.
+Services Standard Frameworks (SSF) - Reusable frameworks, features and tools.  
+Services Standard Words (SSW) - Document templates (not shipped with the SSD but provided 
+on Compass)
+Services Standard Performance (SSP) - Performance tools
+Services Standard Test (SST) - Testing tools
+
+
+****************************************
+SUMMARY OF CONTENTS
+****************************************
+
+SSB:            Standard IdentityIQ build tool.
+
+
+SSF:  
+    Frameworks: Field Value, Role Assignment, Dynamic Emails, Approvals, Provision 
+                Processor
+    Features:   Joiner, Mover, Leaver, Attribute Synch, Terminate Identity, Rehire
+    Tools:      Multi-threaded Beanshell Kit, Report Extractor, XML Exporter Task, 
+                Generic Importer, Email Approvals tool, Break Glass Access Request,
+                Correlation Migrator, Workgroup Migrator, Enhanced Email Notifier,
+                IdentityIQ Loopback Connector, Email Template Editor, Certification
+                Exclusion Framework, Access Request Attachments, Server-Specific 
+                Task Launcher, Password Expiration Reminder, Certification Closer,
+                Log Level Manager, Customization Plugin, LogiPlex Connector, 
+                IdentityIQ Summarizer, Mock Integration Executor,
+
+SSP: 
+    Tools:      DB Performance Rule, Sizing Rule, DB Row Count Rule, Task Resulter
+
+SST:
+    Tools:      Unit Tester, JUnit IdentityIQ Helper
+    
+
+For more details on the SSD please visit:
+https://community.sailpoint.com/community/identityiq/sailpoint-toolkits/standard-services-deployment

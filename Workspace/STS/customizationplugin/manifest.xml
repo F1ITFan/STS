@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='UTF-8'?>  
+<!DOCTYPE Plugin PUBLIC "sailpoint.dtd" "sailpoint.dtd">  
+    <Plugin certificationLevel="None" displayName="%%PLUGIN_DISPLAY_NAME%%" minSystemVersion="7.1" name="%%PLUGIN_NAME%%" version="%%VERSION_NUMBER%%.%%BUILD_TIME%%">  
+      <Attributes>  
+        <Map>  
+          <entry key="minUpgradableVersion" value="0.0.1" />      
+        </Map>  
+      </Attributes>  
+    </Plugin>  
