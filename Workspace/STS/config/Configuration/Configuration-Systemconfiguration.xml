@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE sailpoint PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<sailpoint>
+	<ImportAction name="merge">
+		<Configuration name="SystemConfiguration" >
+		  <Attributes>
+		    <Map>
+		    
+		      <entry key="defaultEmailFromAddress" value="%%EMAIL_DEFAULTADDRESS%%"/>
+     		  <entry key="defaultEmailHost" value="%%EMAIL_SERVER%%"/>
+     		  <entry key="defaultEmailPort" value="%%EMAIL_PORT%%"/>
+			  <entry key="disablePassthroughAutoCreate" value="true"/>
+			  <entry key="emailNotifierType" value="smtp"/>
+     		  <entry key="redirectingEmailNotifierAddress" value="%%EMAIL_DEFAULTADDRESS%%"/>
+      		  <entry key="redirectingEmailNotifierFilename" value=""/>
+		      <entry key="lcmEnableFulltext">
+		        <value>
+		          <Boolean>true</Boolean>
+		        </value>
+		      </entry>
+		      <entry key="accessRequestTypes">
+      			  <value>
+       			   <List>
+          		  	<String>AccessRequest</String>
+		            <String>RolesRequest</String>
+		            <String>EntitlementsRequest</String>
+		            <String>AccountsRequest</String>
+		            <String>ExpirePassword</String>
+		            <String>ForgotPassword</String>
+		            <String>PasswordsRequest</String>
+		            <String>IdentityCreateRequest</String>
+		            <String>IdentityEditRequest</String>
+		            <String>Registration</String>
+		            <String>SSFJoiner</String>
+					<String>SSFLeaver</String>
+					<String>SSFTerminateIdentity</String>
+		          </List>
+		        </value>
+		      </entry>
+			  <entry key="identitySnapshotMaxAge" value="30"/>
+		      <entry key="loginPassThrough">
+		        <value>
+		          <List>
+		            <Reference class="sailpoint.object.Application" name="%%PASS_THROUGH_AUTH%%"/>
+		          </List>
+		        </value>
+		      </entry>
+      		  <entry key="serverRootPath" value="%%SERVER_URL%%"/>
+			  <entry key="taskResultMaxAge" value="%%TASK_RESULT_AGE%%"/>
+			  <entry key="workflowLCMAccessRequest" value="STS - LCM provisioning"/>
+              <entry key="workflowLCMAccountsRequest" value="LCM Provisioning"/>
+			  <entry key="enableForgotPassword">
+				<value>
+				  <Boolean>true</Boolean>
+				</value>
+			  </entry>
+			  <entry key="authQuestionsEnabled">
+				<value>
+				  <Boolean>true</Boolean>
+				</value>
+			  </entry>
+			  <entry key="maxAuthLoginFailures">
+				<value>
+				  <Integer>5</Integer>
+				</value>
+			  </entry>
+			  <entry key="maxAuthQuestionFailures">
+				<value>
+				  <Integer>5</Integer>
+				</value>
+			  </entry>
+			  <entry key="numAuthQuestionAnswersRequired">
+				<value>
+				  <Integer>3</Integer>
+				</value>
+			  </entry>
+			  <entry key="numAuthQuestionsForAuthn">
+				<value>
+				  <Integer>2</Integer>
+				</value>
+			  </entry>
+		    </Map>
+		  </Attributes>
+		</Configuration>
+	</ImportAction>
+</sailpoint>

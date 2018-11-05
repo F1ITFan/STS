@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition formPath="/monitor/tasks/accountAggregationTask.xhtml" name="STS Workday Aggregation" resultAction="Delete" subType="task_item_type_acct_aggregation" type="AccountAggregation">
+  <Attributes>
+    <Map>
+      <entry key="TaskDefinition.runLengthAverage" value="1"/>
+      <entry key="TaskDefinition.runLengthTotal" value="5"/>
+      <entry key="TaskDefinition.runs" value="5"/>
+      <entry key="TaskSchedule.host"/>
+      <entry key="applications" value="WorkDay"/>
+      <entry key="checkDeleted" value="true"/>
+      <entry key="checkHistory" value="false"/>
+      <entry key="checkPolicies" value="false"/>
+      <entry key="correlateEntitlements" value="false"/>
+      <entry key="correlateOnly" value="false"/>
+      <entry key="correlateScope" value="false"/>
+      <entry key="deltaAggregation" value="false"/>
+      <entry key="enablePartitioning" value="false"/>
+      <entry key="haltOnMaxError" value="false"/>
+      <entry key="noAutoCreateApplications" value="false"/>
+      <entry key="noAutoCreateScopes" value="false"/>
+      <entry key="noNeedsRefresh" value="false"/>
+      <entry key="noOptimizeReaggregation" value="false"/>
+      <entry key="promoteManagedAttributes" value="false"/>
+      <entry key="refreshCertifications" value="false"/>
+      <entry key="refreshScorecard" value="false"/>
+      <entry key="sequential" value="false"/>
+      <entry key="taskCompletionEmailNotify" value="Disabled"/>
+      <entry key="taskCompletionEmailRecipients"/>
+      <entry key="taskCompletionEmailTemplate"/>
+    </Map>
+  </Attributes>
+  <Description>Task template for application account scanning.
+
+STS Workday</Description>
+  <Owner>
+    <Reference class="sailpoint.object.Identity" name="spadmin"/>
+  </Owner>
+  <Parent>
+    <Reference class="sailpoint.object.TaskDefinition" name="Account Aggregation"/>
+  </Parent>
+</TaskDefinition>
