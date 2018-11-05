@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ObjectConfig PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<ObjectConfig name="Bundle">
+  <Attributes>
+    <Map>
+      <entry key="roleTypeDefinitions">
+        <value>
+          <List>
+            <RoleTypeDefinition displayName="Organizational" icon="organizationalIcon" name="organizational" noAssignmentSelector="true" noAutoAssignment="true" noDetection="true" noIIQ="true" noManualAssignment="true" noPermits="true" noProfiles="true" noRequirements="true" notPermittable="true" notRequired="true">
+              <Description>Defines a collection of roles that typically correspond to departments or business units within an organizational hierarchy.</Description>
+              <RequiredRights>
+                <Reference class="sailpoint.object.SPRight" name="ManageOrganizationalRoles"/>
+              </RequiredRights>
+            </RoleTypeDefinition>
+            <RoleTypeDefinition displayName="Business" icon="businessIcon" name="business" noDetection="true" noIIQ="true" noProfiles="true" notPermittable="true" notRequired="true">
+              <Description>Defines a collection of users that perform similar functions within the organization.  Business Roles are associated with IT Roles or Entitlement Roles to provide specific levels of access to enterprise IT resources.</Description>
+              <RequiredRights>
+                <Reference class="sailpoint.object.SPRight" name="ManageBusinessRoles"/>
+              </RequiredRights>
+            </RoleTypeDefinition>
+            <RoleTypeDefinition displayName="IT" icon="itIcon" name="it" noAssignmentSelector="true" noAutoAssignment="true" noIIQ="true" noManualAssignment="true" noPermits="true" noRequirements="true">
+              <Description>Defines a collection of IT entitlements which can be associated with Business Roles to provide users with specific access rights.  IT Roles can be constrained to entitlements within a single application or expanded to include entitlements across applications.</Description>
+              <RequiredRights>
+                <Reference class="sailpoint.object.SPRight" name="ManageITRoles"/>
+              </RequiredRights>
+            </RoleTypeDefinition>
+            <RoleTypeDefinition displayName="Entitlement" icon="entitlementIcon" name="entitlement" noAssignmentSelector="true" noAutoAssignment="true" noIIQ="true" noManualAssignment="true" noPermits="true" noRequirements="true">
+              <Description>Defines a single IT entitlement necessary to access data or perform a specific action within a target system.</Description>
+              <RequiredRights>
+                <Reference class="sailpoint.object.SPRight" name="ManageEntitlementRoles"/>
+              </RequiredRights>
+            </RoleTypeDefinition>
+            <RoleTypeDefinition displayName="Stars Server Role" icon="" name="StarsServerRole" noAutoAssignment="true" noDetection="true" noRequirements="true" noSubs="true" notPermittable="true" notRequired="true"/>
+          </List>
+        </value>
+      </entry>
+    </Map>
+  </Attributes>
+  <ObjectAttribute defaultValue="levelOne - IT Director" displayName="Approval Level" editMode="Permanent" namedColumn="true" name="approvalLevel">
+    <AllowedValues>
+      <String>levelZero - none</String>
+      <String>levelOne - IT Director</String>
+      <String>levelTwo - IT Director and OPS Director</String>
+      <String>levelThree - IT Director and OPS Manager and OPS Director</String>
+    </AllowedValues>
+    <Description>The approval level for the role.</Description>
+  </ObjectAttribute>
+  <ObjectAttribute displayName="Role Set" editMode="Permanent" namedColumn="true" name="roleSet">
+    <AllowedValues>
+      <String>set-1</String>
+      <String>set-2</String>
+      <String>set-3</String>
+      <String>set-4</String>
+      <String>set-5</String>
+    </AllowedValues>
+    <Description>The group/set to which this role belongs...
+Used for 'Access Request' purposes :
+Only those roles linked to a manager's 'roleSet' attribute will be shown for selection...</Description>
+  </ObjectAttribute>
+</ObjectConfig>

@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+
+
+<Rule language="beanshell" name="STS-Rule-RequestObjectSelector-Entitlement" type="RequestObjectSelector">
+ <Source>
+ <![CDATA[ 
+/*---------------------------------------------------------------------------------
+   
+  Parameters :
+  
+   [ input ] requestee  (Identity) 
+   [ input ] requester  (Identity)
+   [ output ] filter  (sailpoint.object.QueryInfo) The QueryInfo object containing 
+   			  the filter to	be applied to the object list.
+   			  
+   QuickLink population : Manager
+   Object Request 		: Entitlement
+   Original Value 		: "All Objects" rule.
+   
+----------------------------------------------------------------------------------*/   
+import sailpoint.object.QueryInfo;
+
+QueryInfo filter = null;
+
+/*--- For Stars Technologies an Empty Collection must be return for Entitlements. ---
+  ---  No individual Entitlement should be allowed to be requested !---*/
+filter = new QueryInfo (null, true);
+
+return filter;
+  
+]]>
+</Source>
+</Rule>

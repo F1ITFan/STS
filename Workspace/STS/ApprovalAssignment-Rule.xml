@@ -1,0 +1,529 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="Custom-Approval-Assignment-Rule" type="ApprovalAssignment">
+  <Source>
+  <![CDATA[ 
+    import java.util.ArrayList;
+    import java.util.HashMap;
+    import java.util.HashSet;
+    import java.util.List;
+    import java.util.Map;
+    import java.util.Set;
+
+    import org.apache.log4j.Logger;
+    import org.apache.log4j.Level;
+    
+    import sailpoint.api.ManagedAttributer;
+    import sailpoint.object.Application;
+    import sailpoint.object.ApprovalItem;
+    import sailpoint.object.ApprovalSet;
+    import sailpoint.object.Attributes;
+    import sailpoint.object.Bundle;
+    import sailpoint.object.Custom;
+    import sailpoint.object.Identity;
+    import sailpoint.object.Filter;
+    import sailpoint.object.QueryOptions;
+    
+    import sailpoint.object.ManagedAttribute;
+    import sailpoint.object.Workflow;
+    import sailpoint.object.Workflow.Approval;
+    import sailpoint.tools.GeneralException;
+    import sailpoint.tools.Message;
+    import sailpoint.tools.Util;
+    import sailpoint.web.messages.MessageKeys;
+
+    Logger log = Logger.getLogger("sailpoint.services.approvalAssignment");
+    
+    //TODO turn off after testing
+    //log.setLevel(Level.TRACE);
+    
+    log.trace("Enter Custom Approval Assignment Rule");
+
+    // The name of the Custom object containing the defined approval schemes
+    String governanceModelName = "Custom Governance Model";
+    // The name of the extended ObjectAttribute that contains the governance level
+    String governanceAttr = "approvalLevel"; //---"governanceLevel"; ---
+    // Should not have to change the following constants
+    String delimiter = "-";
+    String defaultDescPrefix = "Access Request";
+
+/*------------------------------------------------------------------------------------------------------
+ *  searchIdentityBasedOnPositionAttribute
+ *  
+ *  Parameters :
+ *  
+ *  [input] position  : Job Title to search for...
+ * 
+ *  [output] Identity : First identity found holding the requested 'Job Title' ...
+ *
+ *------------------------------------------------------------------------------------------------------*/
+public Identity  searchIdentityBasedOnPositionAttribute (String position) throws GeneralException
+{
+	List<Identity>   identitiesList = null;
+	Identity         identity = null;
+	QueryOptions   	 queryOptions = null;
+	Filter           filter = null;
+
+
+
+	log.debug("[ searchIdentityBasedOnPositionAttribute ] Entering ... position : '" + position + "'");
+
+	//--- Search for the 'L1 Approval Identity' : (this is the default) ---
+	filter = Filter.eq("position", position);
+	queryOptions = new QueryOptions();
+	queryOptions.addFilter(filter);
+
+	log.debug("[ searchIdentityBasedOnPositionAttribute ] QueryOptions : \n" + queryOptions.toString());
+
+	try	{
+		identitiesList = context.getObjects(Identity.class, queryOptions);
+		
+	} 	catch (GeneralException e)	{
+		log.error("SailPointContext.getObject(Identity.class, '" + position + "') threw : " + e.toString());
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
+
+	filter = null;
+	queryOptions = null;
+
+	if (identitiesList != null && identitiesList.size() > 0) {
+		if (identitiesList.size() > 1) {
+		  log.warn("[ searchIdentityBasedOnPositionAttribute ] There are " + identitiesList.size() + " identity with  'position' : '" +
+					 position + "'");
+		  for (Identity id: identitiesList)
+		    log.warn("[ searchIdentityBasedOnPositionAttribute ] Identity : '" +
+					    id.getDisplayName() + "' position : '" + id.getAttribute("position") + "'");
+		}
+		
+	   identity = identitiesList.get(0);
+	   log.debug("[ searchIdentityBasedOnPositionAttribute ] Identity [ 0 ] Display Name : '" + 
+			   	     identity.getDisplayName() + "' Position : '" + identity.getAttribute(position) + "'.");
+	}else
+	  log.warn("[ searchIdentityBasedOnPositionAttribute ] No identites found for 'position' : '" +
+	    		 position + "'");
+
+	log.debug("[ searchIdentityBasedOnPositionAttribute ] Leaving ...");
+
+	return identity;
+
+
+} //--- End of method 'searchIdentityBasedOnPositionAttribute' ---
+/*------------------------------------------------------------------------------------------------------*/
+
+    // Helper method to generate an approval work item description based on an optional prefix
+    String generateApprovalDesc(String prefix, String identityName) {
+      String desc = "Approval - Account Changes for User: " + identityName;
+      return (Util.isNullOrEmpty(prefix)) ? desc : prefix + " " + desc;
+    }
+/*------------------------------------------------------------------------------------------------------*/
+
+    // Helper method to create a new Workflow.Approval
+    Approval createApproval(String desc, String owner, String identityName, ApprovalItem item) {
+      Approval appr = new Approval();
+      appr.setDescription(desc);
+      appr.setOwner(owner);
+      ApprovalSet apprSet = new ApprovalSet();
+      apprSet.add(item);
+      appr.setApprovalSet(apprSet);
+      appr.addArg(Workflow.ARG_WORK_ITEM_TARGET_CLASS, "sailpoint.object.Identity");
+      appr.addArg(Workflow.ARG_WORK_ITEM_TARGET_NAME, identityName);
+      appr.addArg(Workflow.ARG_WORK_ITEM_NOTIFICATION_TEMPLATE, "LCM Identity Update Approval");
+
+      return appr;
+    }
+ /*------------------------------------------------------------------------------------------------------*/
+    
+    if (null == workflow) {
+      log.error("Worflow not set!");
+    } else {
+      // Retrieve the values for default Workflow variables
+      String identityName = (String) workflow.get("identityName");
+      String identityDisplayName = (String) workflow.get("identityDisplayName");
+      String launcher = (String) workflow.get("launcher");
+      String securityOfficer = (String) workflow.get("securityOfficerName");
+      String fallbackApprover = (String) workflow.get("fallbackApprover");
+
+      // Use spadmin for fallback approvals if not specified by the workflow
+      if (Util.isNullOrEmpty(fallbackApprover)) {
+        fallbackApprover = "spadmin";
+      }
+
+      if (Util.isNullOrEmpty(identityName)) {
+        log.error("Workflow variable identityName not set!");
+      } else {
+        // If display name is not set, use the identity name
+        identityDisplayName = Util.isNullOrEmpty(identityDisplayName) ? identityName : identityDisplayName;
+        // Initialize finalApprovals to an empty list to hold any additional approvals needed
+        List finalApprovals = new ArrayList();
+        
+        if (void == approvals || null == approvals) {
+          log.debug("No default approvals set!");
+        } else {
+          if (log.isTraceEnabled()) { 
+            log.trace("Default Approvals:\n"+approvals.toString());
+            for (Approval approval : approvals) {
+              if (null != approval) {
+                log.trace(approval.toXml());
+              }
+            }
+          }
+        }
+        
+        int disabledCount = 0;
+        int itemCount = -1;
+
+        if (void == approvalSet || null == approvalSet) {
+          log.error("ApprovalSet not set!");
+        } else {
+          if (log.isTraceEnabled()) { log.trace("Approval Set:\n"+approvalSet.toXml()); }
+          
+          Custom governanceModel = null;
+          try { governanceModel = context.getObjectByName(Custom.class, governanceModelName); }
+          catch(GeneralException ge) {
+            log.error("Exception caught while retriving SailPoint Custom object with the name: "+governanceModelName);
+          }
+
+          if (null == governanceModel) {
+            log.error("Could not get governance model!");
+          } else {
+            if (log.isTraceEnabled()) { log.trace("Governance Model:\n" + governanceModel.toXml()); }
+            
+            Attributes governanceLevels = governanceModel.getAttributes();
+            if (null == governanceLevels) {
+              log.error("Could not get attributes from custom governance model!");
+            } else {
+              List approvalItems = approvalSet.getItems();
+              itemCount = approvalItems.size();
+
+              for (ApprovalItem item : approvalItems) {
+                int skipCount = 0;
+                List value = item.getValueList();
+                String name = null;
+                if (Util.isEmpty(value)) {
+                  log.error("Could not get value of ApprovalItem as a List!");
+                } else {
+                  name = value.get(0);
+                   log.debug("ApprovalItem.getValueList().get(0) : name = '" + name + "'");
+                }
+                
+                // Determine item type (Role/Entitlement) based on localized display name
+                String type = "Entitlement";
+                String displayName = item.getDisplayName();
+                 
+                if (Util.nullSafeEq(displayName, Message.localize(MessageKeys.APPROVALITEM_ATTRIBUTE_ROLE).getLocalizedMessage())) {
+                  type = "Role";
+                }
+                
+                Attributes attrs = null;
+                Identity owner = null; 
+                if (type.equals("Role")) {
+                  Bundle role = null;
+                  try { role = context.getObjectByName(Bundle.class, name); }
+                  catch(GeneralException ge) {
+                    log.error("Exception caught while retriving SailPoint Bundle object with the name: " + name);
+                  }
+                  if (null != role) {
+                    if (log.isTraceEnabled()) { log.trace("Requested role:\n" + role.toXml()); }
+                    attrs = role.getAttributes();
+                    owner = role.getOwner();
+                  }
+                } else {
+                  name = item.getName();
+                  Application app = null;
+                  try { app = context.getObjectByName(Application.class, item.getApplication()); }
+                  catch(GeneralException ge) {
+                    log.error("Exception caught while retriving SailPoint Application object!");
+                  }
+                  if (app != null) {
+                    ManagedAttribute entitlement = null;
+                    try { entitlement = ManagedAttributer.get(context, app, name, value.get(0)); }
+                    catch(GeneralException ge) {
+                      log.error("Exception caught while retriving SailPoint ManagedAttribute object!");
+                    }
+                    if (null != entitlement) {
+                      if (log.isTraceEnabled()) { log.trace("Requested entitlement:\n"+entitlement.toXml()); }
+                      attrs = entitlement.getAttributes();
+                      owner = entitlement.getOwner();
+                    }
+                  }
+                }
+                
+                List approvers = new ArrayList();
+                
+                if (attrs == null) {
+                  log.error("Could not get " + type.toLowerCase() + " attributes!");
+                } else {
+                  // Determine the approval scheme based on governance level
+                  String level = attrs.getString(governanceAttr);
+                  log.debug("Application OR Role attr (" + governanceAttr + ") level : '" + level + "'");
+                  
+                  // Strip out any description included in the level
+                  if (level != null && level.contains(delimiter)) {
+                      level = level.split(delimiter,2)[0].trim();
+                  }
+                  
+                  if (Util.isNullOrEmpty(level)) {
+                    log.debug(type+" has no governance level specified");
+                  } else if (!governanceLevels.containsKey(level)) {
+                    log.debug(type+" has an undefined governance level");
+                  } else {
+                    if (log.isDebugEnabled()) { log.debug("Using approval scheme for Governance : '"+ Util.splitCamelCase(level) + "'"); }
+                    approvers = (ArrayList) governanceLevels.get(level);
+                  }
+                }
+                
+                int approversCount = approvers.size();
+                
+                //--- Apprvers from governanceModel are empty ==> Using default approvals from Workflow ---
+                if (Util.isEmpty(approvers)) {
+                  log.debug("Could not determine custom approvals, using default approvals from workflow...");
+                  // Add back default approvals for the approval item
+                  for (Approval approval : approvals) {
+                    if (approval != null) {
+                      ApprovalSet approvalSet = approval.getApprovalSet();
+                      if (approvalSet != null) {
+                        if (approvalSet.find(item) != null) {
+                          String approvalOwner = approval.getOwner();
+                          if (Util.isNotNullOrEmpty(approvalOwner)) {
+                            // remove quote characters from owner string
+                            approvalOwner = approvalOwner.replace("\"", "");
+                            
+                            if (log.isDebugEnabled()) { log.debug("Searching existing approvals for " + approvalOwner); }
+                            
+                            boolean newApproval = true;
+                            for (Approval appr : finalApprovals) {
+                              if (approvalOwner.equals(appr.getOwner())) {
+                                log.debug("Match found, adding default approval item to existing approval...");
+                                // TODO: turn this into a function??
+                                ApprovalSet apprSet = appr.getApprovalSet();
+                                if (null != apprSet && apprSet.find(item) == null) {
+                                  apprSet.add(item);
+                                  appr.setApprovalSet(apprSet);
+                                }
+                                newApproval = false;
+                                break;
+                              }
+                            }
+                            if (newApproval) {
+                              log.debug("No match found, creating new default approval...");
+                              finalApprovals.add(createApproval(approval.getDescription(), approvalOwner, identityName, item));
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                // Check for disabled approvals
+                } else if (Util.nullSafeContains(approvers, "none")) {  //--- Gornance model : Approvals disabled ---
+                  log.debug("Approvals disabled based on governance level approval scheme.");
+                  disabledCount++;
+                  item.approve();
+                } else {
+                
+                  if (log.isDebugEnabled()) { log.debug("Approval scheme:\n"+approvers.toString()); }
+                  
+                  for (String approver : approvers) {
+                    String approvalOwner = null;
+                    String descPrefix = null;
+                    
+                    boolean type_error = false,lookup_error = false;
+                    
+                    if (approver.contains(delimiter)) {
+                      descPrefix = defaultDescPrefix;
+                      String[] s = approver.split(delimiter,2);
+                      switch (s[0]) {
+                        case "identity": 
+                        case "workgroup": approvalOwner = s[1];
+                                          break;
+                        default: type_error = true;
+                                 break;
+                      }
+                    } else {
+                      descPrefix = Util.splitCamelCase(approver);
+                      
+					  log.debug("enter switch on approver: " + approver);
+
+                      apprIdent = searchIdentityBasedOnPositionAttribute (approver);
+                      
+                      if (apprIdent != null)
+                        approvalOwner =  apprIdent.getName ();
+
+					  log.debug("approver '" + approver + "' ... got: " + approvalOwner);
+					  
+					  /*------
+                      switch (approver) {
+                      
+                        case "manager": Identity ident = null;
+                                        try { ident = context.getObjectByName(Identity.class, identityName); }
+                                        catch(GeneralException ge) {
+                                          log.error("Exception caught while retriving SailPoint Identity object with the name: "+identityName);
+                                        }
+                                        if (null == ident) {
+                                          lookup_error = true;
+                                        } else {
+                                          ident = ident.getManager();
+                                          if (null == ident) {
+                                            lookup_error = true;
+                                          } else {
+                                            approvalOwner = ident.getName();
+                                          }
+                                        }
+										log.debug("manager... got: " + approvalOwner);
+                                        break;
+                                        
+                        case "owner": if (null != owner) { approvalOwner = owner.getName(); }
+									  log.debug("owner... got: " + approvalOwner);
+                                      break;
+                                      
+                        case "userGroupOwner": Identity ident = null;
+                                        try { ident = context.getObjectByName(Identity.class, identityName); }
+                                        catch(GeneralException ge) {
+                                          log.error("Exception caught while retriving SailPoint Identity object with the name: "+identityName);
+                                        }
+                                        if (null == ident) {
+                                          lookup_error = true;
+                                        } else {
+                                          String userGroupValue = ident.getAttribute("userGroup");
+
+										   log.debug("userGroupValue... got: " + userGroupValue);
+                                          if (null == userGroupValue) {
+                                            lookup_error = true;
+                                          } else {
+                                          	ident = context.getObjectByName(Identity.class, userGroupValue + " Owners");
+                                          	if (null == ident) {
+                                          		lookup_error = true;
+                                          	}
+                                          	else {
+                                            	approvalOwner = ident.getName();
+                                            }
+                                          }
+                                        }
+										log.debug("userGroupOwner... got: " + approvalOwner);
+                                        break;
+                                        
+                        case "securityOfficer": if (Util.isNullOrEmpty(securityOfficer)) {
+                                                  lookup_error = true;
+                                                } else {
+                                                  approvalOwner = securityOfficer;
+                                                }
+												log.debug("securityOfficer... got: " + approvalOwner);
+                                                break;
+                                                
+                        case "trimis": Identity ident = null;
+                             try { ident = context.getObjectByName(Identity.class, "TRIMS.Approver"); }
+                             catch(GeneralException ge) {
+                               log.error("Exception caught while retriving SailPoint Identity object with the name: "+identityName);
+                             }
+                             if (null == ident) {
+                               lookup_error = true;
+                             } else {
+                            	 approvalOwner = ident.getName();
+                             }
+                             log.debug("trimis... got: " + approvalOwner);
+                             break;
+                             
+                        default: 
+                                 if (!attrs.containsKey(approver)) {
+                                   type_error = true;
+                                 } else {
+                                   approvalOwner = attrs.getString(approver);
+                                   if (Util.isNullOrEmpty(approvalOwner)) {
+                                     lookup_error = true;
+                                   }
+                                 }
+								 log.debug("default... got: " + approvalOwner);
+                                 break;
+                      } //--- switch ---
+                      ---*/
+                      
+                    }
+                    
+                    if (type_error) {
+                      log.error("Unknown approval type found for the " + name + " " + type + "!");
+                    }
+                    if (lookup_error) {
+                      log.error("Could not determine the approver for a " + descPrefix + " approval!");
+                    }
+                    
+                    // Ensure approval owner is a valid Identity
+                    Identity apprIdent = null;
+                    boolean launcherInWorkGroup = false;
+                    
+                    try { 
+                      apprIdent = context.getObject(Identity.class, approvalOwner);
+                      launcherIdent = context.getObject(Identity.class, launcher);
+                      launcherInWorkGroup = launcherIdent != null && launcherIdent.isInWorkGroup(apprIdent);
+                    } catch (GeneralException ge) {
+                      log.error("Exception caught while retriving SailPoint Identity object for the requester or approval owner!");
+                    }
+
+                    if (Util.nullSafeEq(approvalOwner, launcher) || launcherInWorkGroup) {
+                      if (log.isDebugEnabled()) { log.debug("Approval owner is the requester. Skipping approval type "+approver+" for this item..."); }
+                      if (Util.nullSafeEq(approversCount, ++skipCount)) {
+                        log.debug("All approvals for the requested item have been skipped.");
+                        disabledCount++;
+                        item.approve();
+                      }
+                    } else {
+                      if (Util.isNullOrEmpty(approvalOwner) || apprIdent == null) {
+                        log.debug("Approver not found. Using fallback approver...");
+                        approvalOwner = fallbackApprover;
+                      }
+                      Approval approval = null;
+                      for (Approval appr : finalApprovals) {
+                        if (approvalOwner.equals(appr.getOwner())) {
+                          approval = appr;
+                          break;
+                        }
+                      }
+                      
+                      if (null == approval) {
+                        // Existing approval not found, create a new one
+                        finalApprovals.add(createApproval(generateApprovalDesc(descPrefix, identityDisplayName), approvalOwner, identityName, item));
+                      } else {
+                        // Add approval item to existing approval
+                        ApprovalSet apprSet = approval.getApprovalSet();
+                        if (null != apprSet && apprSet.find(item) == null) {
+                          apprSet.add(item);
+                          approval.setApprovalSet(apprSet);
+                          if (!approval.getDescription().startsWith(descPrefix)) {
+                            approval.setDescription(generateApprovalDesc(defaultDescPrefix, identityDisplayName));
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        // If all approvals have been disabled, return null, otherwise set the final approvals
+        if (Util.nullSafeEq(itemCount, disabledCount)) {
+          log.debug("Approvals for all requested items have been disabled or skipped.");
+          approvals = null;
+        } else if (!finalApprovals.isEmpty()) {
+          approvals = finalApprovals;
+        } else { // Otherwise, don't overwrite the default workflow approvals
+          log.debug("No additional approval processing required. Using default workflow approvals...");
+        }
+        
+        if (log.isTraceEnabled() && approvals != null) { 
+          log.trace("Final Approvals:\n"+approvals.toString());
+          for (Approval approval : approvals) {
+            if (null != approval) {
+              log.trace(approval.toXml());
+            }
+          }
+        }
+      }
+    }
+    
+    log.trace("Exit Custom Approval Assignment Rule");
+
+    return approvals;
+  ]]>
+  </Source>
+</Rule>

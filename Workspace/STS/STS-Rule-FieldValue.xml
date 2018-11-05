@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+
+
+<Rule language="beanshell" name="STS-Rule-FieldValue" type="FieldValue">
+  <Source>
+  <![CDATA[ 
+/*---------------------------------------------------------------------------------
+   
+  Parameters :
+  
+		    
+ [ input ]  'template' ( Template)  = sailpoint.object.Template@7edf03a0
+ [ input ]  'role' = null
+ [ input ]  'log' ( Log4JLogger)  = org.apache.commons.logging.impl.Log4JLogger@37e91dc8
+ [ input ]  'logger' ( Logger)  = org.apache.log4j.Logger@2382a2a0
+ [ input ]  'link' = null
+ [ input ]  'noApplicationTemplates' ( Boolean)  = false
+ [ input ]  'project' ( ProvisioningProject)  = sailpoint.object.ProvisioningProject@1935298
+ [ input ]  'source' ( String)  = LCM
+ [ input ]  'current' = null
+ [ input ]  'objectRequest' ( AccountRequest)  = sailpoint.object.ProvisioningPlan$AccountRequest@28ad37d0
+
+ [ input ]  'identity' (sailpoint.object.Identity) 
+		    Reference to the Identity for whom the field value is being set
+ 
+ 
+ [ input ]  'context' ( InternalContext)  = sailpoint.server.InternalContext@740876b7
+ [ input ]  'plan' ( ProvisioningPlan)  = sailpoint.object.ProvisioningPlan@4844eaef
+ [ input ]  'disableRetryRequest' ( Boolean)  = true
+ [ input ]  'group' = null
+ [ input ]  'requester' ( String)  = spadmin
+ [ input ]  'identityName' ( String)  = vitalyb
+ [ input ]  'noLocking' ( Boolean)  = false
+ [ input ]  'bsf' ( BSFManager)  = org.apache.bsf.BSFManager@27eda17d
+ [ input ]  'application' (Application) 
+ [ input ]  'field' ( Field)  = sailpoint.object.Field@28f59e68
+ [ input ]  'bsh' ( This)  = 'this' reference to Bsh object : NameSpace : Bsh Object (bsh.NameSpace@4c858f77
+ [ input ]  'optimisticProvisioning' ( String)  = false
+ [ input ]  'accountRequest' ( AccountRequest)  = sailpoint.object.ProvisioningPlan$AccountRequest@28ad37d0
+ [ input ]  'operation' ( Operation)  = Add
+		    
+   
+   [ Output ]  value : java.lang.object
+              The value to set for the field.
+   
+----------------------------------------------------------------------------------*/   
+import org.apache.log4j.Logger;
+import sailpoint.object.Field;
+
+
+
+String   fieldName = null,
+	     applicationName = null,
+	     applicationType = null,
+	     employeeID = null,
+	     attrValue = null,
+	     roleName  = null;
+Object   value = null;	     
+boolean  proceed = true;
+
+	     
+Logger logger = Logger.getLogger("sts.rule.FieldValue");
+
+logger.debug("[ Rule : FieldValue ] Enter ... ");
+
+
+if (logger.isTraceEnabled() == true)
+{
+
+logger.debug("[ Rule : FieldValue ] Beanshell namespace : \n");
+
+for (int i = 0; i < this.variables.length; i++) 
+{
+   String name = this.variables[i];
+   // skip “transient” variable in workflow steps because // transient is a Java reserved word and fails eval() if ("transient".equals(name)) {continue;}
+   Object value = eval(name);
+   
+   if (value == void)
+     logger.debug("   " + i + ") : '" + name + "' = void");
+   else
+     if (value == null)
+       logger.debug("   " + i + ") : '" + name + "' = null");
+     else
+      if (value instanceof sailpoint.object.SailPointObject)
+      {        
+        // logger.debug XML representation if it is a SailPointObject
+        logger.debug("   " + i + ") : '" + name + "' (" + value.getClass().getSimpleName() + ") = " + value.toXml());
+      } 
+      else
+        logger.debug("   " + i + ") : '" + name + "' ( " + value.getClass().getSimpleName() + ")  = " + value);
+ }
+}
+ 
+
+if (application != null)
+{
+   applicationName = application.getName();  //--- Just for logging ---
+   
+   applicationType = application.getType();  //--- Linux or Windows ...
+   
+   logger.debug("[ Rule : FieldValue ] Application : '" + applicationName + "' Type : '" +
+			applicationType + "' ...");
+   
+} 
+ 
+if (field != null)
+{
+  fieldName = field.getName();
+  
+  if (fieldName == null) 
+  {
+     logger.debug("[ Rule : FieldValue ] field's  name : '" + "<NULL>"  + "' \n");
+  	  proceed = false;   
+  }
+  else
+     logger.debug("[ Rule : FieldValue ] field's  name : '" + fieldName + "' \n");
+}
+
+if (role != null)
+{
+  roleName = role.getName();
+  
+  if (roleName == null) 
+     logger.debug("[ Rule : FieldValue ] role's  name : '" + "<NULL>"  + "' \n");
+  else
+     logger.debug("[ Rule : FieldValue ] role's  name : '" + roleName + "' \n");
+}
+
+if (proceed == true)
+{
+
+  if (identity == null) 
+     logger.debug("\n [ Rule : FieldValue ] ---->> identity IS NULL ! \n");
+
+if (applicationType.compareToIgnoreCase("Linux - Direct") == 0) //-- Linux ---
+{
+
+switch (fieldName)
+{
+case "username" :
+	attrValue = (String) identity.getAttribute("name");
+
+	if (attrValue == null)	
+       logger.debug("\n [ Rule : FieldValue ] identity.name  IS NULL ! \n");
+	else
+       logger.debug("\n [ Rule : FieldValue ] identity.name : '" + attrValue + "' \n");
+	
+	value = new String (identity.getName());
+break;
+
+case "comment" :
+	value = new String ((String) identity.getDisplayName());
+break;
+
+case "password" : //--- temp passwd = username + empl + ! ---
+	employeeID = (String) identity.getAttribute("employeeID");
+	
+	if (employeeID == null)
+	  employeeID = new String ("12345");
+
+	logger.debug("\n [ Rule : FieldValue ] Linux. identity.employeeID  : '" + employeeID + "' \n");
+
+	value = new String ((String) identity.getName() + employeeID + "!");
+break;
+
+} //-- switch ---
+
+}
+else
+if (applicationType.compareToIgnoreCase("Windows Local - Direct") == 0) //-- Windows ---
+{
+
+switch (fieldName)
+{
+case "sAMAccountName" :
+	value = new String ((String) identity.getName());
+	
+	if (roleName != null && roleName.compareToIgnoreCase("DBA-RDBMS") == 0)
+	  value += "_dba";
+break;
+
+case "Description" :
+	value = new String ((String) identity.getDisplayName() + ","  +
+						(String) identity.getAttribute("position"));
+
+break;
+
+case "FullName" :
+	value = new String ((String) identity.getDisplayName());
+
+break;
+
+case "password" : //--- temp passwd = username + empl + "!" ---
+	employeeID = (String) identity.getAttribute("employeeID");
+	
+	if (employeeID == null)
+	   employeeID = new String("12345");
+	   
+	logger.debug("\n [ Rule : FieldValue ] WindowsServer. identity.employeeID  : '" + employeeID + "' \n");
+	   
+	value = new String ((String) identity.getFirstname() + employeeID + "!");
+break;
+
+
+} //-- switch ---
+
+}
+else
+logger.warn("[ Rule : FieldValue ] Application : '" + applicationName + "' Type : '" +
+			applicationType + "' not considered in rule !");
+}
+ 
+logger.debug("[ Rule : FieldValue ] Leaving ..." +
+			 " Application : '" +  applicationName + "'.'" + fieldName +
+			 "' = '" + value + "'");
+			 
+return value;			 
+  
+]]>
+</Source>
+</Rule>

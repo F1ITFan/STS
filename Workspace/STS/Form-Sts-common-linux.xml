@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Form PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Form name="STS-Common-Linux" type="Application">
+  <Attributes>
+    <Map>
+      <entry key="pageTitle" value="STS-Common-Linux"/>
+      <entry key="subtitle" value="Linux Applications"/>
+      <entry key="title" value="STS Common Provisiong Policy Form"/>
+    </Map>
+  </Attributes>
+  <Description>Provisioning Policy Forn for Linux  apps.</Description>
+  <Section>
+    <Field displayName="con_form_linux_direct_username" helpKey="help_con_linux_direct_username" name="username" required="true" reviewRequired="false" type="string" >
+      <RuleRef>
+         <Reference class="sailpoint.object.Rule" name="STS-Rule-FieldValue"/>
+      </RuleRef>
+    </Field>
+    
+    <Field displayName="con_form_linux_direct_homedir" helpKey="help_con_linux_direct_homedir" name="home" reviewRequired="false" type="string"/>
+    <Field displayName="con_form_linux_direct_shell" helpKey="help_con_linux_direct_shell" name="shell" reviewRequired="false" type="string"/>
+    <Field displayName="con_form_linux_direct_userid" helpKey="help_con_linux_direct_userid" name="uid" reviewRequired="false" type="string"/>
+    
+    <Field displayName="con_form_linux_direct_password" helpKey="help_con_linux_direct_password" name="password" required="true" reviewRequired="false" type="secret">
+      <RuleRef>
+         <Reference class="sailpoint.object.Rule" name="STS-Rule-FieldValue"/>
+      </RuleRef>
+    </Field>
+    
+    <Field displayName="con_form_linux_direct_mindays" helpKey="help_con_linux_direct_mindays" name="pwdmin" reviewRequired="false" type="string"/>
+    <Field displayName="con_form_linux_direct_maxdays" helpKey="help_con_linux_direct_maxdays" name="pwdmax" reviewRequired="false" type="string"/>
+    <Field displayName="con_form_linux_direct_warntime" helpKey="help_con_linux_direct_warntime" name="pwdwarn" reviewRequired="false" type="string"/>
+    <Field displayName="con_form_linux_direct_grpname" helpKey="help_con_linux_direct_grpname" name="primgrp" reviewRequired="false" type="string"/>
+    
+    <Field displayName="con_form_linux_direct_comment" helpKey="help_con_linux_direct_comment" name="comment"  required="true" reviewRequired="false" type="string" >
+      <RuleRef>
+         <Reference class="sailpoint.object.Rule" name="STS-Rule-FieldValue"/>
+      </RuleRef>
+    </Field>
+    
+    <Field displayName="con_form_linux_direct_accdur" helpKey="help_con_linux_direct_accdur" name="expiration" reviewRequired="false" type="string"/>
+    <Field displayName="con_form_linux_direct_acctime" helpKey="help_con_linux_direct_acctime" name="inactive" reviewRequired="false" type="string"/>
+    <Field displayName="con_form_linux_direct_home" helpKey="help_con_linux_direct_home" name="crthomedir" reviewRequired="false" type="boolean"/>
+    <Field displayName="con_form_linux_direct_login" helpKey="help_con_linux_direct_login" name="lastlog" reviewRequired="false" type="boolean"/>
+    <Field displayName="con_form_linux_direct_dupid" helpKey="help_con_linux_direct_dupid" name="dupuid" reviewRequired="false" type="boolean"/>
+    <Field displayName="con_form_linux_direct_pswdlogin" helpKey="help_con_linux_direct_pswdlogin" name="forcepwdchg" reviewRequired="false" type="boolean" value="false"/>
+  </Section>
+</Form>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE DynamicScope PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<DynamicScope name="STS Role Request Scope">
+  <Selector>
+    <IdentitySelector>
+      <MatchExpression>
+        <MatchTerm name="rights" value="STS_Role_Request_SPRight"/>
+      </MatchExpression>
+    </IdentitySelector>
+  </Selector>
+</DynamicScope>

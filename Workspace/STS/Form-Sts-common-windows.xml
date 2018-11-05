@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Form PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Form name="STS-Common-Windows" type="Application">
+  <Attributes>
+    <Map>
+      <entry key="pageTitle" value="Create User"/>
+      <entry key="subtitle" value="Windows Applications"/>
+      <entry key="title" value="STS Common Provisiong Policy Form"/>
+    </Map>
+  </Attributes>
+  <Description>Provisioning Policy Form for Windows apps.</Description>
+  <Section>
+    <Field displayName="con_prov_policy_wl_sAMAccountName" helpKey="help_con_prov_policy_wl_sAMAccountName" name="sAMAccountName" required="true" reviewRequired="false" type="string">
+      <RuleRef>
+         <Reference class="sailpoint.object.Rule" name="STS-Rule-FieldValue"/>
+      </RuleRef>
+    </Field>
+    
+    <Field displayName="con_prov_policy_wl_Password" helpKey="help_con_prov_policy_wl_Password" name="password" required="true" reviewRequired="false" type="secret">
+      <RuleRef>
+         <Reference class="sailpoint.object.Rule" name="STS-Rule-FieldValue"/>
+      </RuleRef>
+    </Field>
+    
+    <Field displayName="con_prov_policy_wl_Description" helpKey="help_con_prov_policy_wl_Description" name="Description" required="true" reviewRequired="false" type="string">
+      <RuleRef>
+         <Reference class="sailpoint.object.Rule" name="STS-Rule-FieldValue"/>
+      </RuleRef>
+    </Field>
+    
+    <Field displayName="con_prov_policy_wl_FullName" helpKey="help_con_prov_policy_wl_FullName" name="FullName" required="true" reviewRequired="false" type="string">
+      <RuleRef>
+         <Reference class="sailpoint.object.Rule" name="STS-Rule-FieldValue"/>
+      </RuleRef>
+    </Field>
+    
+    <Field displayName="con_prov_policy_wl_Disable" helpKey="help_con_prov_policy_wl_Disable" name="IIQDisabled" required="false" reviewRequired="false" type="string" value="false">
+      <AllowedValuesDefinition>
+        <Value>
+          <List>
+            <String>true</String>
+            <String>false</String>
+          </List>
+        </Value>
+      </AllowedValuesDefinition>
+    </Field>
+    <Field displayName="con_prov_policy_wl_PasswordExpired" helpKey="help_con_prov_policy_wl_PasswordExpired" name="PasswordExpired" required="false" reviewRequired="false"  type="string" value="true">
+      <AllowedValuesDefinition>
+        <Value>
+          <List>
+            <String>true</String>
+            <String>false</String>
+          </List>
+        </Value>
+      </AllowedValuesDefinition>
+    </Field>
+    <Field displayName="con_prov_policy_wl_PasswordUnchangeable" helpKey="help_con_prov_policy_wl_PasswordUnchangeable" name="PasswordUnchangeable" required="false" reviewRequired="false" type="string" value="false">
+      <AllowedValuesDefinition>
+        <Value>
+          <List>
+            <String>true</String>
+            <String>false</String>
+          </List>
+        </Value>
+      </AllowedValuesDefinition>
+    </Field>
+    <Field displayName="con_prov_policy_wl_PasswordNeverExpires" helpKey="help_con_prov_policy_wl_PasswordNeverExpires" name="PasswordNeverExpires" required="false" reviewRequired="false"  type="string" value="false">
+      <AllowedValuesDefinition>
+        <Value>
+          <List>
+            <String>true</String>
+            <String>false</String>
+          </List>
+        </Value>
+      </AllowedValuesDefinition>
+    </Field>
+  </Section>
+</Form>

@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Custom PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Custom name="Custom Governance Model">
+  <Attributes>
+    <Map>
+      <entry key="levelZero">
+        <value>
+          <List>
+            <String>none</String>
+          </List>
+        </value>
+      </entry>
+      <entry key="levelOne">
+        <value>
+          <List>
+<!--             <String>manager</String>   -->
+            <String>Director, Information Security and Infrastructure, IT/Compliance</String>
+          </List>
+        </value>
+      </entry>
+      <entry key="levelTwo">
+        <value>
+          <List>
+<!--             <String>manager</String>
+            <String>systemsManager</String>  -->
+            <String>Director, Information Security and Infrastructure, IT/Compliance</String>
+            <String>Director, Technical Operations</String>
+          </List>
+        </value>
+      </entry>
+      <entry key="levelThree">
+        <value>
+          <List>
+<!--            <String>DBAManager</String>
+            <String>OpsManager</String>  -->
+            <String>Director, Information Security and Infrastructure, IT/Compliance</String>
+            <String>Director, Technical Operations</String>
+            <String>Manager, Database Administration</String>
+          </List>
+        </value>
+      </entry>
+    </Map>
+  </Attributes>
+</Custom>

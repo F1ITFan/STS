@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE DynamicScope PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<DynamicScope name="Manager">
+  <ApplicationRequestControl>
+    <Reference class="sailpoint.object.Rule" name="Objects in Requestor's Authorized Scopes"/>
+  </ApplicationRequestControl>
+  <Description/>
+  <ManagedAttributeRequestControl>
+    <Reference class="sailpoint.object.Rule" name="All Objects"/>
+  </ManagedAttributeRequestControl>
+  <PopulationRequestAuthority>
+    <MatchConfig enableSubordinateControl="true" maxHierarchyDepth="10" subordinateOption="directOrIndirect"/>
+  </PopulationRequestAuthority>
+  <RoleRequestControl>
+    <Reference class="sailpoint.object.Rule" name="STS-Rule-RequestObjectSelector-Role"/>
+  </RoleRequestControl>
+  <Selector>
+    <IdentitySelector>
+      <MatchExpression>
+        <MatchTerm name="managerStatus" value="true"/>
+      </MatchExpression>
+    </IdentitySelector>
+  </Selector>
+</DynamicScope>

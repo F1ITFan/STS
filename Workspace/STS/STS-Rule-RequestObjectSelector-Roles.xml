@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="STS-Rule-RequestObjectSelector-Role" type="RequestObjectSelector">
+  <Source><![CDATA[
+  
+/*---------------------------------------------------------------------------------
+  Rule Type : RequestObjectSelector
+  
+  Parameters :
+  
+   [ input ] requestee  (Identity) 
+   [ input ] requestor  (Identity)
+   [ output ] filter  (sailpoint.object.QueryInfo) The QueryInfo object containing 
+   			  the filter to	be applied to the object list.
+   			  WARNING : If this method returns null all Roles can be selected !
+   			  
+   QuickLink population : Manager
+   Object Request 		: Entitlement
+   Original Value 		: "All Objects" rule.
+   
+----------------------------------------------------------------------------------*/   
+import sailpoint.object.QueryInfo;
+import sailpoint.object.Identity;
+import sailpoint.object.Filter;
+import sailpoint.object.QueryOptions;
+import sailpoint.object.Attributes;
+import sailpoint.tools.xml.PersistentArrayList;
+
+
+import org.apache.log4j.Logger;
+
+import java.util.ArrayList;
+import java.lang.Object;
+
+
+
+	Object        roleSetAttribute = null;
+	QueryInfo     queryInfo = null;
+	QueryOptions  queryOptions = null;
+	Filter 		  filter = null,
+				   orFilterItem = null;
+	ArrayList<Filter> filtersList = null;
+//---	ArrayList<String>  roleSetList = null;
+		List<String>     attrKeys = null;
+	Attributes    attrs = null;
+	PersistentArrayList persistentList= null;
+	Object []  roles = null;
+	String roleSet = null;
+	
+	
+	
+	Logger logger = Logger.getLogger("sts.rule.RequestObjectSelector.Roles");
+
+    if (requestor != null)
+	  logger.debug("[ RequestObjectSelectorForRoles ] Entering ... requestor : '" + 
+				 requestor.getDisplayableName() + "' \n " + requestor.toXml());
+    else
+	  logger.debug("[ RequestObjectSelectorForRoles ] Entering ... requestor : '" + 
+				   "IS NULL" + "'");
+    
+	
+	if (requestor != null)
+	{
+		queryOptions = new QueryOptions();
+
+		//--- Retrieve the Identities' roleSet attribute --
+		roleSetAttribute = requestor.getAttribute("roleSet");
+		
+		if (roleSetAttribute != null)
+		{
+			if (roleSetAttribute.getClass().getName().compareToIgnoreCase("java.lang.String") == 0)
+			  logger.debug("[ RequestObjectSelectorForRoles ] The 'roleSet' attribute is a " +
+				  	   roleSetAttribute.getClass().getName() + "' object. 'roleSet' = '" + 
+				  	   (String) roleSetAttribute + "'.");
+			else
+			{
+				persistentList = (PersistentArrayList) requestor.getAttribute("roleSet");
+				
+			    logger.debug("[ RequestObjectSelectorForRoles ] The 'roleSet' attribute is a " +
+					  	     roleSetAttribute.getClass().getName() + "' object. 'roleSet' = '" + 
+					  	     persistentList.toString() + "'.");
+			}
+
+
+		if (roleSetAttribute.getClass().getSimpleName().compareToIgnoreCase("String") == 0)
+		{
+			//--- The roleSet attribute is : 'String' ? ---
+			filter = Filter.eq("roleSet", roleSetAttribute);
+			queryOptions.add(filter);
+			queryInfo = new QueryInfo(queryOptions);
+			
+		  logger.debug("[ RequestObjectSelectorForRoles ] The requester (Identity) has one? role set  'roleSet'" + 
+			        "assigned. Setting a QueyOptions to : '" + queryOptions.toString() + "'");
+			
+		}
+		else //--- The roleSet attribute is : 'PersistentArrayList' ? ---
+			
+		{
+			
+		 if (persistentList != null && persistentList.size() > 0)
+		 {
+		   filtersList = new ArrayList<Filter>();
+		
+		  for (Object roleSet : persistentList)
+		  {
+			 orFilterItem = Filter.eq("roleSet", (String) roleSet);
+		
+			 filtersList.add(orFilterItem);
+		  }
+		  
+		  filter = Filter.or(filtersList);
+		  
+		  queryOptions.add(filter);
+
+		  logger.debug("[ RequestObjectSelectorForRoles ] The requester (Identity) has role sets  'roleSet'" + 
+			        "assigned. Setting a QueyOptions to : '" + queryOptions.toString() + "'");
+
+		  /*--- For Stars Technologies ---*/
+		  queryInfo = new QueryInfo (queryOptions);
+		  
+		}
+		else
+		{
+			//--- if the identity has no value for the 'roleSet' attribute  allow NO roles to be requested ! --
+			queryInfo = new QueryInfo (null, true);
+			logger.warn("[ RequestObjectSelectorForRoles ] The requester (Identity) has no role sets ('roleSet' attribute) " + 
+			            "assigned. Setting a NO data QueryInfo object !");
+		}
+      }
+        }
+		else
+		{
+			
+			logger.warn("[ RequestObjectSelectorForRoles ] The 'roleSet' attribute for requestor '" + 
+						requestor.getName() + "' is NULL ! " + 
+			            "Setting a NO data QueryInfo object !");
+
+			return new QueryInfo (null, true);
+					
+		}
+      
+	}
+	else  //--- if for some strange reason the requester is null, allow NOTHING to be requested ! ---
+	{
+		logger.warn("[ RequestObjectSelectorForRoles ] The requester (Identity) is NULL ! " + 
+			        "Setting a NO data QueryInfo object !");
+		return new QueryInfo (null, true);
+	}
+
+	if (queryInfo != null)
+	  logger.debug("[ RequestObjectSelectorForRoles ] Leaving ... QueryInfo : '" + 
+			queryInfo.toString() + "'");
+	else
+	  logger.debug("[ RequestObjectSelectorForRoles ] Leaving ... QueryInfo : '" + 
+					"NULL" + "'");
+	
+	return queryInfo;
+  
+
+]]></Source>
+</Rule>
