@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="STS-Rule-AccountSeletor" type="AccountSelector">
+  <Source><![CDATA[
+  
+/*---------------------------------------------------------------------------------
+ *   
+ *   Parameters :
+ *
+ *   Common arguments (to ALL IdentityIQ rules !) :
+ *
+ *  [ input ] log (org.apache.log4j.Logger)
+ *	[ input ] context (sailpoint.api.SailPointContex)
+ *   
+ *  Rule especific parameters (just for this rule !) :
+ *  
+ *  [ input ] source String (sailpoint.object.Source enum value)
+ *			  Enum value defining the source of the request (UI, LCM, Task, etc.)
+ *
+ *  [ input ] role (sailpoint.object.Bundle) The IT role being provisioned
+ *  
+ *  [ input ] identity (sailpoint.object.Identity) The Identity to whom the role is being provisioned
+ *
+ *  [ input ] application (sailpoint.object.Application 
+ *  		  The Target application on which the entitlements will be provisioned
+ *
+ *  [ input ] links ( ArrayList of sailpoint.object.Link objects )
+ *			 List of all available links held by the Identity
+ *
+ *  [ input ] isSecondary (Boolean) True if this is not the first assignment of this role to this user
+ *
+ *  [ input ] project (sailpoint.object.ProvisioningProject)
+ *			  Provisioning project for the provisioning request
+ * 
+ *  [ input ] accountRequest (sailpoint.object.AccountRequest) ???????
+ *			  Account request containing details to be provisioned to the selected target account
+ *
+ *  [ input ] allowCreate (Boolean) 
+ * 			  True if account creation is allowed (i.e. if the system can accept and act upon the 
+ * 			  return from the rule of a new Link with no nativeIdentity  
+ * 
+ *  [ output ] selection (sailpoint.object.Link OR String )
+ *			  Can return any of these:
+ *     		a) one of the available Links (accounts) currently held by the Identity
+ *   -->	b) a Link with a null nativeIdentity value – this tells the system to create a
+ *			   new Link (any values on the returned Link are ignored and the Link is created based on 
+ *			   the role and application provisioning.
+ *
+ *
+----------------------------------------------------------------------------------*/   
+import sailpoint.object.Source;
+import sailpoint.object.QueryInfo;
+import sailpoint.object.Identity;
+import sailpoint.object.Application;
+import sailpoint.object.Link;
+import sailpoint.object.Bundle;
+import sailpoint.object.ProvisioningProject;
+import sailpoint.object.Link;
+
+
+import org.apache.log4j.Logger;
+
+import java.util.ArrayList;
+import java.lang.String;
+import java.lang.Boolean;
+
+
+	Link    linkForNewAccountCreation = null;
+	Logger  logger = Logger.getLogger("sts.rule.AccountSelector");
+	String  applicationGroup = null,
+			roleName = null,
+			nativeIdentity = null,
+			identityName = null;
+	int counter = 0;
+
+
+	Logger logger = Logger.getLogger("sts.rule.AccountSelector");
+
+	logger.debug("[ AccountSelector ] Entering ... ");
+
+	if (source != null)
+		logger.debug("[ AccountSelector ] [ source ] : '" + source + "'.");
+	else
+		logger.debug("[ AccountSelector ] [ source ] : '" + "IS NULL" + "'.");
+
+	if (role != null)
+		logger.debug("[ AccountSelector ] [ role] : '" + role.getName() + "'.");
+	else
+		logger.debug("[ AccountSelector ] [ role] : '" + "IS NULL" + "'.");
+
+	if (identity != null)
+		logger.debug("[ AccountSelector ] [ identity ] : '\n" + identity.getName() + "'.\n");
+	else
+		logger.debug("[ AccountSelector ] [ identity ] : '" + "IS NULL" + "'.");
+
+	if (application != null)
+		logger.debug("[ AccountSelector ] [ application ] : '\n" + application.getName() + "'.\n");
+	else
+		logger.debug("[ AccountSelector ] [ application] : '" + "IS NULL" + "'.");
+
+	if (links != null)
+	{
+		int i = 1;
+		for (Link link : links)
+		{
+		  logger.debug("[ AccountSelector ] [ links ] " + i + ") : \n'" + link.toXml() + "'.\n");
+		  i++;
+		}
+	}
+	else
+		logger.debug("[ AccountSelector ] [ links ] : '" + "IS NULL" + "'.");
+
+	if (isSecondary != null)
+		logger.debug("[ AccountSelector ] [ isSecondary ] : '" + isSecondary + "'.");
+	else
+		logger.debug("[ AccountSelector ] [ isSecondary ] : '" + "IS NULL" + "'.");
+
+	if (project != null)
+		logger.debug("[ AccountSelector ] [ project ] : '" + project.isEmpty() + "'.\n");
+	else
+		logger.debug("[ AccountSelector ] [ project ] : '" + "IS NULL" + "'.");
+
+	if (allowCreate != null)
+		logger.debug("[ AccountSelector ] [ allowCreate ] : '" + allowCreate + "'.");
+	else
+		logger.debug("[ AccountSelector ] [ allowCreate ] : '" + "IS NULL" + "'.");
+
+
+	if (logger.isTraceEnabled() == true)
+	{
+
+	logger.debug("[ Rule : AccountSelector ] Beanshell namespace : \n");
+
+	for (int i = 0; i < this.variables.length; i++) 
+	{
+	   String name = this.variables [ i ];
+	   // skip “transient” variable in workflow steps because // transient is a Java reserved word and fails eval() if ("transient".equals(name)) {continue;}
+	   Object value = eval(name);
+	   
+	   if (value == void)
+	     logger.debug("   " + i + ") : '" + name + "' = void");
+	   else
+	     if (value == null)
+	       logger.debug("   " + i + ") : '" + name + "' = null");
+	     else
+	      if (value instanceof sailpoint.object.SailPointObject)
+	      {        
+	        // logger.debug XML representation if it is a SailPointObject
+	        logger.debug("   " + i + ") : '" + name + "' (" + value.getClass().getSimpleName() + ") = " + value.toXml());
+	      } 
+	      else
+	        logger.debug("   " + i + ") : '" + name + "' ( " + value.getClass().getSimpleName() + ")  = " + value);
+	 }
+	}
+
+	/*--- ==> the Application (Server in this case has no native accounts created for this Identity
+	 *  THEN let the provisioning continue by doing nothing --
+	 */
+	
+	if (links != null  && links.size() > 0 && application != null)
+	{
+		
+		appAttrs = application.getAttributes();
+		
+		if (appAttrs != null)
+		{
+		  applicationGroup = appAttrs.getString("applicationGroup");
+		
+		  if (applicationGroup != null && applicationGroup.compareToIgnoreCase("Windows DBA") == 0)
+		  {
+			 roleName = role.getName();
+			 
+			 if (roleName != null && 
+					 (roleName.compareToIgnoreCase("STS-RDBMS") == 0 ||
+					  roleName.compareToIgnoreCase("STS-OPS")   == 0 ) )
+			 {
+				 int i = 0;
+				 //--- Select the link with a native identity ending with '_dba' ...
+				 for (Link link : links)
+				 {
+					 if (link != null)
+					 { 
+						nativeIdentity = link.getNativeIdentity();
+						
+						if (identity != null)
+						{
+						  identityName = identity.getName();
+						  
+						  if (identityName != null)
+						  {
+							  logger.debug("[ Rule : AccountSelector ] 1.Identity name  : '" +
+									  	   identityName + "'.");
+							  
+							  if (roleName.compareToIgnoreCase("STS-RDBMS") == 0 )
+							    identityName += "_dba";
+							  
+							  logger.debug("[ Rule : AccountSelector ] 2.Identity name  : '" +
+								  	   identityName + "'.");
+						  }
+						}
+						
+					    if (nativeIdentity != null)
+						{
+					    	logger.debug("[ Rule : AccountSelector ] 1. Native dentity : '" +
+					    				 nativeIdentity + "'");
+					    	if (identityName != null &&
+					    	   identityName.compareToIgnoreCase(nativeIdentity) == 0)
+					    	{
+						       linkForNewAccountCreation = links.get(i);
+						       counter ++;
+					    	}
+						
+						}
+					 }
+					 
+					 i++;
+				 } //--- for links ---
+			 }
+		  }
+		}
+	}
+	
+
+
+/*--- Begin Sheetal's code :
+	String user = (String) identity.getName();
+	int count = 0;
+	
+	logger.debug("Applicaiton Name : '" + application.getName() + "'");
+
+	for (int i = 0; i < links.size() && links.get(i) != null; ++i) 
+	{
+		String uid = (String) ((Link) links.get(i)).getAttribute("sAMAccountName");
+		
+	    if ((links.get(i)).getApplicationName().equals("Active Directory") && !((links.get(i)).isDisabled()) ) 
+	    {
+	    	linkForNewAccountCreation = links.get(i);
+	        logger.trace(user  + " has AD account  "  + uid +  " is Disabled " + (links.get(i)).isDisabled());
+	        count = count + 1;
+	    }
+	    
+	    logger.trace(user  + " has AD account  "  + uid +  " is Disabled " + (links.get(i)).isDisabled());
+	}
+--- End Sheetal's code. ---*/
+
+
+
+
+	if (linkForNewAccountCreation != null)
+		logger.debug("[ AccountSelector ] Leaving ... Link  : \n" + linkForNewAccountCreation.toXml());
+	else
+	{
+		logger.debug("[ AccountSelector ] Leaving ... Link  : '" + "NULL" + "'");
+
+		linkForNewAccountCreation = new Link();
+		linkForNewAccountCreation.setNativeIdentity(null);
+		 
+		logger.debug("[ AccountSelector ] Leaving ... Creating a new Link object with " +
+					 "Nativeidentity set to NULL  : '\n" + linkForNewAccountCreation.toXml() + "'\n");
+    }
+    
+  if (counter == 1)
+	return linkForNewAccountCreation;
+  else
+	return null;
+
+
+]]></Source>
+</Rule>

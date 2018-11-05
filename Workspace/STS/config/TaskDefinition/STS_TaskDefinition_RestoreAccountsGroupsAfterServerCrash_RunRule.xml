@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition name="STS Restore Accounts And Groups Task" executor="sailpoint.task.RuleExecutor" resultAction="Delete" subType="task_item_type_generic" type="Generic" progressInterval="5000" progressMode="String">
+  <Attributes>
+    <Map>
+      <entry key="ruleName" value="STS Restore Accounts_Groups Rule"/>
+      <entry key="taskCompletionEmailNotify"/>
+      <entry key="taskCompletionEmailRecipients"/>
+      <entry key="taskCompletionEmailTemplate"/>
+      <entry key="logLevel" value="All"/>
+     </Map>
+  </Attributes>
+  <Description>
+    Task to run the rule 'STS Restore Accounts_Groups Rule' to restore accounts and groups after server crash
+    RuleConfig parameters:
+    - Select target application
+
+  </Description>
+  <Owner>
+    <Reference class="sailpoint.object.Identity" name="spadmin"/>
+  </Owner>
+  <Signature>
+    <Inputs>
+      <Argument helpKey="Enter the application associated with the Server to be restored" name="applicationId" type="Application">
+        <Prompt>Application</Prompt>
+      </Argument>
+      <Argument helpKey="To Enable/Disable logging" name="enableLogging" type="boolean">
+        <Prompt>Enable Logging?</Prompt>
+      </Argument>
+      <Argument helpKey="Log Level (trace, info, debug, error or all)" name="logLevel" type="string">
+        <Prompt>Log Level</Prompt>
+      </Argument>
+     </Inputs>
+    <Returns>
+      <Argument name="identitiesProcessed" type="string">
+        <Prompt>Total identities processed</Prompt>
+      </Argument>
+      <Argument name="accountsProcessed" type="string">
+        <Prompt>Total accounts processed</Prompt>
+      </Argument>
+      <Argument name="groupsProcessed" type="string">
+        <Prompt>Total groups processed</Prompt>
+      </Argument>
+    </Returns>
+  </Signature>
+</TaskDefinition>

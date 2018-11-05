@@ -1,0 +1,170 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="STS Restore Accounts_Groups Rule">
+  <Description>This rule will restore accounts and gropups for server that have crashed.
+    </Description>
+  <Source>
+        
+            import sailpoint.object.Identity;
+            import sailpoint.object.Application;
+            import sailpoint.object.Link;
+            import sailpoint.object.ManagedAttribute;
+            import sailpoint.object.QueryOptions;
+            import sailpoint.object.Schema;
+            import sailpoint.api.IdentityService;
+            import sailpoint.object.ProvisioningPlan;
+            import sailpoint.object.ProvisioningPlan.ObjectRequest;
+            import sailpoint.object.ProvisioningPlan.AccountRequest;
+            import sailpoint.object.ProvisioningPlan.AttributeRequest;
+            import sailpoint.api.ManagedAttributer;
+            import sailpoint.object.ProvisioningProject;
+            import sailpoint.api.Provisioner;
+            import sailpoint.tools.Util;
+  					import sailpoint.api.IdentityService;
+            import org.apache.commons.logging.Log;
+            import org.apache.commons.logging.LogFactory;
+
+            Log logger = LogFactory.getLog("sts.rule.RestoreAccountsGroups");
+
+            logger.info("Entering Restore Accounts and Groups Rule");
+
+            /* Batch task to restore user accounts, including passwords and gropups after server crash */
+            private int createGroups(String applicationName, String applicationId) {
+                ObjectRequest objtReq;
+                int recCount = 0;
+                String  value, groupDisplayName, attrName, attrValue,
+                        hqlQuery = "SELECT ma.value, ma.displayName, ma.attribute from ManagedAttribute as ma where ma.application.name='" + applicationName + "'";
+                Schema groupSchema;
+                ProvisioningPlan plan;
+                Iterator itGroups = context.search(hqlQuery, null, new QueryOptions());
+
+              	Object [] groups;
+                ManagedAttribute accountGroup;
+                Map objtReqMap = Util.stringToMap("[application=" + applicationName + ", op=Create, type=group]");
+                List valueAttributeList = Util.csvToList("name,sAMAccountName");
+
+                while (itGroups.hasNext()) {
+                    recCount++;
+                    groups = itGroups.next();
+                    value = groups[0];
+                    groupDisplayName = groups[1];
+                    attributeName = groups[2];
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Group:" + value + "::" + groupDisplayName);
+                    }
+                    accountGroup = ManagedAttributer.get(context, applicationId, attributeName, value);
+                    objtReq = new ObjectRequest(objtReqMap);
+                    groupSchema = application.getSchema("group");
+                    for (attrName : groupSchema.getAttributeNames()) {
+                        attrValue = (valueAttributeList.contains(attrName)?accountGroup.getValue():accountGroup.getAttribute(attrName));
+                        if (logger.isDebugEnabled()) logger.debug("Creating AttributeRequest for " + attrName);
+                        objtReq.add(new AttributeRequest(attrName, ProvisioningPlan.Operation.Set, attrValue));
+                    }
+                    plan = new ProvisioningPlan();
+                    plan.setTargetIntegration(applicationName);
+                    plan.addObjectRequest(objtReq);
+                    doProvisioning(plan);
+                }
+                Util.flushIterator(itGroups);
+                return recCount;
+            }
+
+            private int createAccounts(String applicationName, String applicationId) {
+                ProvisioningPlan plan;
+                Object [] identities;
+                AccountRequest acctReq;
+                Schema accountSchema;
+                
+                Identity identity;
+                IdentityService identityService = new IdentityService(context);
+              	Application appObj = context.getObjectByName(Application.class, applicationName);
+                List pwdHist, acctReqs;
+                int recCount = 0;
+                String  identityName, identityDisplayName, nativeIdentity, accountDisplayName, prevIdentity, identiyPwd,
+                        hqlQuery = "SELECT idt.name, idt.displayName, link.nativeIdentity, link.displayName FROM Identity AS idt";
+                hqlQuery += " JOIN idt.links AS link WHERE link.application.id='" + applicationId + "' ORDER BY idt.name";
+                Iterator itIdentities = context.search(hqlQuery, null, new QueryOptions());
+
+                while (itIdentities.hasNext()) {
+                    recCount++;
+                    identities = itIdentities.next();
+                    identityName = identities[0];
+                    logger.debug("...identityName = " + identityName);
+
+                    if (!identityName.equals(prevIdentity)) {
+                        prevIdentity = identityName;
+                        identitiesCnt++;
+                        identityDisplayName = identities[1];
+                        identity = context.getObjectByName(Identity.class, identityName);
+                        plan = new ProvisioningPlan();
+                        plan.setNativeIdentity(identityName);
+                        plan.setIdentity(identity);
+                        plan.setTargetIntegration(applicationName);
+                      	List links = identityService.getLinks(identity,appObj);
+
+                          if(null != links &amp;&amp; links.size()&gt;0) {
+        										for(Link link : links) {
+                              pwdHist = Util.csvToList(link.getPasswordHistory());
+                              break;
+                            }
+                          }
+                        
+                        identiyPwd = context.decrypt(pwdHist.get(0));
+                    }
+                    nativeIdentity = identities[2];
+                    accountDisplayName = identities[3];
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Identity:" + identityName + "::" + identityDisplayName);
+                        logger.debug("Account:" + nativeIdentity + "::" + accountDisplayName);
+                        logger.debug("Creating AccountRequest...");
+                    }
+                    acctReqs = new ArrayList();
+                    acctReq = new AccountRequest(AccountRequest.Operation.Create, applicationName, null, nativeIdentity);
+                    accountSchema = application.getAccountSchema();
+                    Link link = identityService.getLink(identity, application, null, nativeIdentity);
+                    for (String attrName : accountSchema.getAttributeNames()) {
+                        if (logger.isDebugEnabled()) logger.debug("Creating AttributeRequest for " + attrName);
+                        acctReq.add(new AttributeRequest(attrName, ProvisioningPlan.Operation.Set, link.getAttribute(attrName)));
+                    }
+                    acctReq.add(new AttributeRequest("password", ProvisioningPlan.Operation.Set, identiyPwd));
+                    acctReqs.add(acctReq);
+                    plan.setAccountRequests(acctReqs);
+                    doProvisioning(plan);
+                }
+                Util.flushIterator(itIdentities);
+                context.decache(identity);
+                return recCount;
+            }
+
+            private void doProvisioning(ProvisioningPlan plan) {
+                Provisioner provisioner = new Provisioner(context);
+                //if (logger.isDebugEnabled()) logger.debug("Provisioning plan:\n" + plan.toXml());
+                provisioner.execute(plan);
+            }
+
+            /***************************************************
+             * MAIN
+             */
+            String applicationName = config.get("applicationId");
+  					String applicationId;
+  					if (logger.isDebugEnabled()) logger.debug("...applicationName = " + applicationName);
+  					if (logger.isDebugEnabled()) logger.debug("...applicationId = " + applicationId);
+  					int identitiesCnt = 0;
+
+            Application application = context.getObjectByName(Application.class, applicationName);
+            applicationId = application.getId();
+            
+            int groupsCnt = createGroups(applicationName, applicationId);
+  					if (logger.isDebugEnabled()) logger.debug("...Done Groups = " + applicationName);
+            int accountsCnt = createAccounts(applicationName, applicationId);
+  					if (logger.isDebugEnabled()) logger.debug("...Done Accounts = " + applicationName);
+            context.decache(application);
+
+            taskResult.setAttribute("identitiesProcessed", identitiesCnt);
+            taskResult.setAttribute("accountsProcessed", accountsCnt);
+            taskResult.setAttribute("groupsProcessed", groupsCnt);
+            logger.info("Exiting Restore Accounts and Groups Rule");
+            return "success";
+        
+    </Source>
+</Rule>
