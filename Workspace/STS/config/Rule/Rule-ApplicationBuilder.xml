@@ -1,0 +1,888 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="Application Builder">
+  <Description>
+    A rule to build and manipulate IdentityIQ application in a bulk.
+    All duties are mentioned below.
+    1. When create mode is selected, then it creates multiple application in a bulk by parsing csv file.
+    2. When update mode is selected, then it updates the attribute map of existing application by parsing input csv file.
+    3. When read mode is selected, then it reads all existing IdentityIQ application and export them to csv file.
+       Exports considers only attributes of the application.
+  </Description>
+  <Signature returnType="TaskResult">
+    <Inputs>
+      <Argument name="context">
+        <Description>
+          A sailpoint.api.SailPointContext object that can be used to
+          query the database to save application object and task definitions.
+        </Description>
+      </Argument>
+      <Argument name="log">
+        <Description>
+          The log object for logging.
+        </Description>
+      </Argument>
+      <Argument name="inputParams">
+        <Description>
+          The input params object is map of attributes received from Task UI.
+        </Description>
+      </Argument>
+      <Argument name="taskResult">
+        <Description>
+          The task result object required for updating the result.
+        </Description>
+      </Argument>
+    </Inputs>
+  </Signature>
+  <Source><![CDATA[
+    
+      import java.io.BufferedReader;
+      import java.io.FileNotFoundException;
+      import java.io.FileReader;
+      import java.io.IOException;
+      import java.util.ArrayList;
+      import java.util.Date;
+      import java.util.HashMap;
+      import java.util.LinkedHashMap;
+      import java.util.List;
+      import java.util.Map;
+      import sailpoint.api.SailPointContext;
+      import sailpoint.api.TaskManager;
+      import sailpoint.connector.Connector;
+      import sailpoint.connector.ConnectorFactory;
+      import sailpoint.connector.DefaultApplicationFactory;
+      import sailpoint.object.Application;
+      import sailpoint.object.Application.Feature;
+      import sailpoint.object.Attributes;
+      import sailpoint.object.Identity;
+      import sailpoint.object.Rule;
+      import sailpoint.object.Form;
+      import sailpoint.object.FormRef;
+      import sailpoint.object.TaskDefinition;
+      import sailpoint.object.TaskItemDefinition;
+      import sailpoint.object.TaskSchedule;
+      
+      import sailpoint.object.PasswordPolicy;
+	  import sailpoint.object.PasswordPolicyHolder;
+
+      import sailpoint.tools.GeneralException;
+      import sailpoint.tools.Message;
+      import sailpoint.tools.Util;
+      import java.io.FileWriter;
+      import sailpoint.object.TaskResult;
+      import sailpoint.object.Filter;
+      import sailpoint.object.QueryOptions;
+      import sailpoint.object.Attributes;
+      import java.util.Set;
+      import java.util.Iterator;
+      import java.util.LinkedHashMap;
+      import java.util.LinkedHashSet;
+      
+      
+import org.apache.log4j.Logger;
+
+
+
+
+      // Private member variables
+      private int applicationsCreated = 0;
+      private int applicationsUpdated = 0;
+      private int applicationsScanned = 0;
+      private List applicationsExists = new ArrayList();
+      private List applicationsNotFound = new ArrayList();
+      private List applicationsFailed = new ArrayList();
+      Map applicationMap = new LinkedHashMap();
+      Set uniqueHeaders = new LinkedHashSet();
+
+      // Private Input parameters
+      private String filePath;
+      private String applicationType;
+      private String operation;
+      private boolean triggerAccountAggregation;
+      private boolean triggerGroupAggregation;
+      private boolean skipTestConnection;
+      private String launcher;
+      private int applicationsPerAggregation = 10;
+
+
+Logger logger = Logger.getLogger("sts.rule.ApplicationBuilder");
+
+
+      // Public member variables
+      /**
+      * List of secret attributes used in different connector's application attribute.
+      */
+      Set secreteAttributes = new LinkedHashSet();
+      String rowSeparator = "\n";
+
+      /////////// public methods for processing IdentityIQ applications. ///////////
+      //////////////////////////////////////////////////////////////////////////////
+
+      /**---------------------------------------------------------------------------
+       * Parse the input CSV file based on fix format.
+       * and convert it to the attribute map for further processing.
+       */
+      public void parseInputFile() {
+          if (log.isDebugEnabled()) {
+              log.debug("Entering parseInputFile()...");
+          }
+
+          BufferedReader br = null;
+
+          try {
+              String fileRow = "";
+              List fileHeaders = new ArrayList();
+              Map attributeMap = null;
+              br = new BufferedReader(new FileReader(filePath));
+
+              // Parse file headers
+              if ((fileRow = br.readLine()) != null) {
+                  if (log.isDebugEnabled()) {
+                      log.debug("File headers: " + fileRow);
+                  }
+                  fileHeaders = Util.csvToList(fileRow);
+              }
+
+              // Parse CSV file data
+              while ((fileRow = br.readLine()) != null) {
+                  List fileRowList = Util.csvToList(fileRow);
+                  attributeMap = new HashMap();
+                  boolean isApplicationName = true;
+                  String applicationName = "";
+                  int i = 1;
+
+                  // Attribute Map received from input file
+                  for (Object dataObj : fileRowList) {
+                      if (dataObj != null) {
+                          String fileRowData = (String)dataObj;
+                          if (isApplicationName) {
+                              applicationName = fileRowData;
+                              isApplicationName = false;
+                          } else {
+                              if (fileRowData.equalsIgnoreCase("true") || fileRowData.equalsIgnoreCase("false")) {
+                                  attributeMap.put(fileHeaders.get(i), Boolean.parseBoolean(fileRowData));
+                              } else {
+                                  attributeMap.put(fileHeaders.get(i), fileRowData);
+                              }
+                              i++;
+                          }
+                      }
+                  }
+                  applicationMap.put(applicationName, attributeMap);
+              }
+          } catch (FileNotFoundException e) {
+              throw new GeneralException("File parsing failed. " + e.getMessage(), e);
+          } catch (IOException e) {
+              throw new GeneralException("File parsing failed. " + e.getMessage(), e);
+          } finally {
+              try {
+                  if (br != null) {
+                      br.close();
+                  }
+              } catch (Exception ex) {
+                  if (log.isWarnEnabled()) {
+                      log.warn("Error while closing BufferedReader object. " + ex.getMessage());
+                  }
+              }
+          }
+
+          if (log.isDebugEnabled()) {
+              log.debug("Exiting parseInputFile()...");
+          }
+      }
+
+      /**--------------------------------------------------------------------------------
+       * Create multiple IdentityIQ applications based on input application data.
+       */
+      private void createApplications() {
+          Form     userCreateForm = null,
+                   groupCreateForm = null,
+                   groupUpdateForm = null;
+          FormRef  			formRef = null;
+ 	      ArrayList<Form>   provisioningForms = null;
+	      int   			i = 1;
+          
+          
+      
+          if (log.isDebugEnabled()) {
+              log.debug("Entering createApplications()...");
+          }
+
+          List aggregationappList = new ArrayList();
+
+          for (Map.Entry entry : applicationMap.entrySet()) {
+          
+              String applicationName = (String) entry.getKey();
+              Application application = context.getObjectByName(Application.class, applicationName);
+
+             if (application != null) {
+                  if (log.isWarnEnabled()) {
+                      log.warn("The application '" + applicationName +"' already exits on the IdentityIQ server.");
+                  }
+                  applicationsExists.add(applicationName);
+                  continue;
+              }
+
+              // Create new IdentityIQ application
+              if (log.isDebugEnabled()) {
+                  log.debug("Creating the application: " + applicationName);
+              }
+              
+              application = DefaultApplicationFactory.getDefaultApplicationByTemplate(applicationType);
+              application.setCreated(new Date());
+              application.setModified(new Date());
+              application.setName(entry.getKey());
+              application.setAuthoritative(false);
+              application.setCaseInsensitive(true);
+              application.setIcon("enterpriseIcon");
+              application.setOwner(context.getObjectByName(Identity.class, launcher));
+              application.removeFeature(Application.Feature.CURRENT_PASSWORD);
+ //---             provisioningForms = (ArrayList<Form>) application.getProvisioningForms();
+              provisioningForms =  application.getProvisioningForms();
+              
+              
+              
+              if (applicationType.compareToIgnoreCase("Windows Local - Direct") == 0){
+              
+ 				 application.setAttribute("disableQualifyingLocalObjects", new Boolean(true));
+ 				 
+ 				 //--- Add password policy for Windows Applications ---
+ 				 
+ 				 PasswordPolicyHolder holder = new PasswordPolicyHolder();
+ 				 
+				 holder.setPolicy(context.getObjectByName(PasswordPolicy.class, "STS-Windows-PassPolicy"));
+				  List policies = new ArrayList();
+				policies.add(holder);
+				application.setPasswordPolicies(policies);
+      		  }
+      		  
+              if (applicationType.compareToIgnoreCase("Linux - Direct") == 0) {
+              
+ 				 //--- Add password policy for Windows Applications ---
+             				 
+ 				 PasswordPolicyHolder holder = new PasswordPolicyHolder();
+ 				 
+				 holder.setPolicy(context.getObjectByName(PasswordPolicy.class, "STS-Linux-PassPolicy"));
+				  List policies = new ArrayList();
+				policies.add(holder);
+				application.setPasswordPolicies(policies);
+                
+      		  
+			  } 
+			      		          
+              for (Form form : provisioningForms)
+    		  {
+    	        logger.debug("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    	        logger.debug(i + " Form : \n" + form.toXml());
+    	
+    	        if (form.getName().compareToIgnoreCase("create group") == 0)
+    		       groupCreateForm = form;
+    	
+    			if (form.getName().compareToIgnoreCase("update group") == 0)
+    				groupUpdateForm = form;
+    	
+    			i++;
+    		  }
+    
+    		  application.setProvisioningForms(null);
+              
+              
+              logger.debug("[ Rule : Application Builder ] applicationType : '" + applicationType + "'");
+
+	          formRef = new FormRef();
+              
+              //--- For STS :  Addition of Create User (For Linux or Windows servers) Provisioning Form ---
+              if (applicationType.compareToIgnoreCase("Linux - Direct") == 0)
+              {
+                  /*----
+                 
+	              if (groupCreateForm != null)
+	              {
+	                provisioningForms.add(groupCreateForm);
+		            logger.debug("[ Rule : Application Builder ] Adding Group Create Form...'");
+	              }
+	              
+	              if (groupUpdateForm != null)
+	              {
+	                provisioningForms.add(groupUpdateForm);
+	                
+		            logger.debug("[ Rule : Application Builder ] Adding Group Update Form...'");
+	              }
+              
+			     -------*/
+              
+    	 		 formRef.setName("STS-Common-Linux");
+    	 		 //userCreateForm  = context.getObjectByName(Form.class, "STS-Common-Linux");
+    	 		 userCreateForm = new Form();
+    	 		 userCreateForm.setName("STS-Common-Linux");
+		    	 userCreateForm.setDescription("Provisioning Policy for Linux applications.");
+    	 		 userCreateForm.setObjectType("account");
+    	 		 userCreateForm.setType(Form.Type.Create);
+    	 		 userCreateForm.setFormRef(formRef);
+                
+                 if (userCreateForm != null)
+    	 		 {
+    		 		logger.debug("2.1) Provisioning Form 'STS-Common-Linux' : \n" + userCreateForm.toXml());
+    		 
+    		 		provisioningForms = new ArrayList<Form>();
+    		 		provisioningForms.add(userCreateForm);
+    		 
+    		 		/*---
+    		 		if (groupCreateForm != null)
+    			   		provisioningForms.add(groupCreateForm);
+
+    		 		if (groupUpdateForm != null)
+    			 		provisioningForms.add(groupUpdateForm);
+    		 		---*/
+    		 		
+    		 		application.setProvisioningForms(provisioningForms);
+    	 		 }
+                
+			   }
+			   else
+                 if (applicationType.compareToIgnoreCase("Windows Local - Direct") == 0)
+                 {
+                  /*----
+                 
+	              if (groupCreateForm != null)
+	              {
+	                provisioningForms.add(groupCreateForm);
+		            logger.debug("[ Rule : Application Builder ] Adding Group Create Form...'");
+	              }
+	              
+	              if (groupUpdateForm != null)
+	              {
+	                provisioningForms.add(groupUpdateForm);
+	                
+		            logger.debug("[ Rule : Application Builder ] Adding Group Update Form...'");
+	              }
+              
+			     -------*/
+                 
+                 
+	   	 		 	formRef.setName("STS-Common-Windows");
+    	 		 	//userCreateForm  = context.getObjectByName(Form.class, "STS-Common-Windows");
+    	 		 	userCreateForm = new Form();
+    	 		 	userCreateForm.setName("STS-Common-Windows");
+		    	 	userCreateForm.setDescription("Provisioning Policy for Windows applications.");
+    	 		 	userCreateForm.setObjectType("account");
+    	 		 	userCreateForm.setType(Form.Type.Create);
+    	 		 	userCreateForm.setFormRef(formRef);
+                
+	                 if (userCreateForm != null)
+	    	 		 {
+	    		 		logger.debug("2.2) Provisioning Form 'STS-Common-Windows' : \n" + userCreateForm.toXml());
+	    		 
+	    		 		provisioningForms = new ArrayList<Form>();
+	    		 		provisioningForms.add(userCreateForm);
+	    		 
+	    		 		/*---
+	    		 		if (groupCreateForm != null)
+	    			   		provisioningForms.add(groupCreateForm);
+	
+	    		 		if (groupUpdateForm != null)
+	    			 		provisioningForms.add(groupUpdateForm);
+	    		 		---*/
+	    		 		
+	    		 		application.setProvisioningForms(provisioningForms);
+	    	 		 }
+
+			     }
+			     else
+                   logger.warn("[ Rule : Application Builder ] " +
+                				"applicationName : '" + applicationName + "' " +
+                				"applicationType : '" + applicationType + "' not supported !");
+			  
+			  
+              // Update attribute map
+              Map innerMap = (Map) entry.getValue();
+
+              for (Map.Entry entryMap : innerMap.entrySet()) {
+                  application.setAttribute((String)entryMap.getKey(), entryMap.getValue());
+              }
+
+              try {
+
+                  // Skip the test connection if the flag is true
+                  if (!skipTestConnection) {
+                      Connector conn = ConnectorFactory.getConnector(application, null);
+                      conn.testConfiguration();
+                      if (log.isDebugEnabled()) {
+                          log.debug("Test connection is successful for the application: " + applicationName);
+                      }
+                  } else {
+                      if (log.isDebugEnabled()) {
+                          log.debug("Skipping Test connection for the application: " + applicationName);
+                      }
+                  }
+
+	              logger.debug("[ Rule : Application Builder ] Saving application : '" + applicationName +
+	              				"\n" + application.toXml());
+
+                  context.saveObject(application);
+                  context.commitTransaction();
+
+                  if (log.isDebugEnabled()) {
+                      log.debug("Created the application: " + applicationName);
+                  }
+                  applicationsCreated++;
+
+                  aggregationappList.add(application.getName());
+
+                  // Perform account and group aggregation task for configured applications per aggregation
+                  if (aggregationappList.size() == applicationsPerAggregation) {
+                      // Trigger account aggregation
+                      if (triggerAccountAggregation) {
+                          executeAccountAggregation(Util.listToCsv(aggregationappList));
+                      }
+
+                      // Trigger group aggregation
+                      if (triggerGroupAggregation) {
+                          executeGroupAggregation(Util.listToCsv(aggregationappList));
+                      }
+                      aggregationappList.clear();
+                  }
+              } catch (Exception ex) {
+                  applicationsFailed.add(application.getName());
+                  if (log.isErrorEnabled()) {
+                      log.error("Failed to create the application '" + applicationName + "'. " + ex.getMessage(), ex);
+                  }
+                  continue;
+              }
+          }
+
+          // Perform account and group aggregation for remianing applications
+          if (!aggregationappList.isEmpty()) { 
+              if (triggerAccountAggregation) {
+                  executeAccountAggregation(Util.listToCsv(aggregationappList));
+              }
+
+              if (triggerGroupAggregation) {
+                  executeGroupAggregation(Util.listToCsv(aggregationappList));
+              }
+          }
+
+          // Update the TaskResult object
+          if (applicationsFailed.size() > 0) {
+              taskResult.setCompletionStatus(TaskResult.CompletionStatus.Error);
+              taskResult.addMessage(Message.error("application_builder_create_failed_error", applicationsFailed.size()));
+          } else if (applicationsExists.size() > 0) {
+              taskResult.setCompletionStatus(TaskResult.CompletionStatus.Warning);
+              taskResult.addMessage(Message.warn("application_builder_create_warning_msg", filePath));
+          } else {
+              taskResult.setCompletionStatus(TaskResult.CompletionStatus.Success);
+          }
+
+          taskResult.setInt("applicationsCreated", applicationsCreated);
+          taskResult.setAttribute("applicationsFailed", Util.listToCsv(applicationsFailed));
+          taskResult.setAttribute("applicationsExists", Util.listToCsv(applicationsExists));
+
+          if (log.isDebugEnabled()) {
+              log.debug("Exiting createApplications()...");
+          }
+      }
+
+      /**----------------------------------------------------------------------------
+       * Update multiple IdentityIQ applications based on input application data.
+       */
+      private void updateApplications() {
+          if (log.isDebugEnabled()) {
+              log.debug("Entering updateApplications()...");
+          }
+
+          List aggregationappList = new ArrayList();
+
+          for (Map.Entry entry : applicationMap.entrySet()) {
+              String applicationName = (String) entry.getKey();
+              Application application = context.getObjectByName(Application.class, applicationName);
+              if (application == null) {
+                  if (log.isWarnEnabled()) {
+                      log.warn("The application '" + applicationName + "' is not found.");
+                  }
+                  applicationsNotFound.add(applicationName);
+                  continue;
+              }
+
+              // Update existing IdentityIQ application
+              if (log.isDebugEnabled()) {
+                  log.debug("Updating the application: " + applicationName);
+              }
+
+              // Update attribute map
+              Map innerMap = (Map) entry.getValue();
+
+              for (Map.Entry entryMap : innerMap.entrySet()) {
+                  application.setAttribute((String)entryMap.getKey(), entryMap.getValue());
+              }
+
+              try {
+
+                  // Skip the test connection if the flag is true
+                  if (!skipTestConnection) {
+                      Connector conn = ConnectorFactory.getConnector(application, null);
+                      conn.testConfiguration();
+                      if (log.isDebugEnabled()) {
+                          log.debug("Test connection is successful for the application: " + applicationName);
+                      }
+                  } else {
+                      if (log.isDebugEnabled()) {
+                          log.debug("Skipping Test connection for the application: " + applicationName);
+                      }
+                  }
+                  context.saveObject(application);
+                  context.commitTransaction();
+
+                  if (log.isDebugEnabled()) {
+                      log.debug("Updated the application: " + applicationName);
+                  }
+                  applicationsUpdated++;
+
+                  aggregationappList.add(application.getName());
+
+                  // Perform account and group aggregation task for configured applications per aggregation
+                  if (aggregationappList.size() == applicationsPerAggregation) {
+                      // Trigger account aggregation
+                      if (triggerAccountAggregation) {
+                          executeAccountAggregation(Util.listToCsv(aggregationappList));
+                      }
+
+                      // Trigger group aggregation
+                      if (triggerGroupAggregation) {
+                          executeGroupAggregation(Util.listToCsv(aggregationappList));
+                      }
+                      aggregationappList.clear();
+                  }
+              } catch (Exception ex) {
+                  applicationsFailed.add(application.getName());
+                  if (log.isErrorEnabled()) {
+                      log.error("Failed to update the application '" + applicationName + "'. " + ex.getMessage(), ex);
+                  }
+                  continue;
+              }
+          }
+
+          // Perform account and group aggregation for remianing applications
+          if (!aggregationappList.isEmpty()) {
+              if (triggerAccountAggregation) {
+                  executeAccountAggregation(Util.listToCsv(aggregationappList));
+              }
+
+              if (triggerGroupAggregation) {
+                  executeGroupAggregation(Util.listToCsv(aggregationappList));
+              }
+          }
+
+          // Update the TaskResult object
+          if (applicationsFailed.size() > 0) {
+              taskResult.setCompletionStatus(TaskResult.CompletionStatus.Error);
+              taskResult.addMessage(Message.error("application_builder_update_failed_error", applicationsFailed.size()));
+          } else if (applicationsNotFound.size() > 0) {
+              taskResult.setCompletionStatus(TaskResult.CompletionStatus.Warning);
+              taskResult.addMessage(Message.warn("application_builder_update_warning_msg", filePath));
+          } else {
+              taskResult.setCompletionStatus(TaskResult.CompletionStatus.Success);
+          }
+
+          taskResult.setInt("applicationsUpdated", applicationsUpdated);
+          taskResult.setAttribute("applicationsFailed", Util.listToCsv(applicationsFailed));
+          taskResult.setAttribute("applicationsNotFound", Util.listToCsv(applicationsNotFound));
+
+          if (log.isDebugEnabled()) {
+              log.debug("Exiting updateApplications()...");
+          }
+      }
+
+      /**
+       * Retriving the application object from IdentityIQ database for given application type and
+       * updating the applicationMap which will be exported to csv file.
+       */
+      public void updateAttributesMap() {
+          if (log.isDebugEnabled()) {
+              log.debug("Entering updateAttributesMap()...");
+          }
+
+          try {
+              Map attributeMap = null;
+              boolean encryptedAttrFound = false;
+
+              // Query filter to get list of applications for the specified application type
+              Filter filter = Filter.eq("type", applicationType);
+
+              // List of application objects
+              List applicationsObjectList = context.getObjects(Application.class, new QueryOptions().addFilter(filter));
+
+              for (Application application : applicationsObjectList) {
+                  if (log.isDebugEnabled()) {
+                      log.debug("Applcation name: " + application.getName());
+                  }
+
+                  uniqueHeaders.add("Name");
+                  attributeMap = new HashMap();
+                  applicationMap.put(application.getName(), attributeMap);
+                  attributeMap.put("Name", application.getName());
+                  Attributes attrMap = application.getAttributes();
+
+                  // Update encrypted attribute
+                  if (!encryptedAttrFound) {
+                      if (attrMap.get("encrypted") != null) {
+                          List encryptedAttrs = Util.csvToList(attrMap.get("encrypted").toString());
+                          secreteAttributes.addAll(encryptedAttrs);
+                          encryptedAttrFound = true;
+                      }
+                  }
+
+                  for (Map.Entry entry : attrMap.entrySet()) {
+                      if (entry.getValue() != null) {
+                          if (entry.getValue() instanceof String || entry.getValue() instanceof Boolean) {
+
+                              // Update attribute map with key and value
+                              attributeMap.put(entry.getKey().toString(), entry.getValue());
+
+                              // Update header set
+                              uniqueHeaders.add(entry.getKey().toString());
+                          }
+                      }
+                  }
+              }
+          } catch (Exception e) {
+              throw new GeneralException("Failed to retrieve application attributes map. " + e.getMessage(), e);
+          }
+
+          if (log.isDebugEnabled()) {
+              log.debug("Entering updateAttributesMap()...");
+          }
+      }
+
+      /**
+      * Export Applications attribute map in csv format.
+      */
+      public void exportApplications() {
+          if (log.isDebugEnabled()) {
+              log.debug("Entering exportApplications()...");
+          }
+
+          FileWriter fileWriter = null;
+
+          if (Util.isEmpty(applicationMap)) {
+              if (log.isWarnEnabled()) {
+                  log.warn("Application '" + applicationType + "' not found on the IdentityIQ server.");
+              }
+              taskResult.setCompletionStatus(TaskResult.CompletionStatus.Success);
+              taskResult.setAttribute("applicationsScanned", applicationMap.size());
+          } else {
+              // Perform the file operation when application map is non empty.
+              try {
+                  fileWriter = new FileWriter(filePath);
+                  fileWriter.append(Util.listToCsv(new ArrayList(uniqueHeaders)));
+                  fileWriter.append(rowSeparator);
+
+                  for (Map.Entry entry : applicationMap.entrySet()) {
+                      StringBuffer attributeRow = new StringBuffer();
+                      Map innerAttrMap = (Map) entry.getValue();
+                      for (Iterator iterator = uniqueHeaders.iterator(); iterator.hasNext();) {
+                          String headerName = (String) iterator.next();
+                          String attrValue = (innerAttrMap.get(headerName) != null) ? innerAttrMap.get(headerName).toString() : "NULL";
+                          if (secreteAttributes.contains(headerName)) {
+                              attrValue = "NULL";
+                          } else if (attrValue.contains(",")) {
+                              attrValue = "\"" + innerAttrMap.get(headerName).toString() + "\"";
+                          }
+
+                          // prepare CSV file row
+                          if (attributeRow.length() == 0) {
+                              attributeRow.append(attrValue);
+                          } else {
+                              attributeRow.append("," + attrValue);
+                          }
+                      }
+
+                      // Update File Row
+                      fileWriter.append(attributeRow);
+                      fileWriter.append(rowSeparator);
+                  }
+              } catch (Exception e) {
+                  throw new GeneralException("Failed to export the application attributes map to a file. " + e.getMessage(), e);
+              } finally {
+                  try {
+                      if (fileWriter != null) {
+                          fileWriter.flush();
+                          fileWriter.close();
+                      }
+                  } catch (Exception ex) {
+                      if (log.isWarnEnabled()) {
+                          log.warn("Error while closing fileWriter object. " + ex.getMessage);
+                      }
+                  }
+              }
+
+              taskResult.setCompletionStatus(TaskResult.CompletionStatus.Success);
+              taskResult.setAttribute("applicationsScanned", applicationMap.size());
+              taskResult.setAttribute("exportFilePath", filePath);
+          }
+
+          if (log.isDebugEnabled()) {
+              log.debug("Exiting exportApplications()...");
+          }
+      }
+
+      /**
+       * Run Account aggregation task for the multiple IdentityIQ applications
+       * @param applicationNames comma saperated application names
+       * 
+      */
+      private void executeAccountAggregation(String applicationNames) throws GeneralException {
+          if (log.isDebugEnabled()) {
+              log.debug("Entering executeAccountAggregation()...");
+          }
+
+          TaskManager tm = new TaskManager(context);
+          HashMap taskArgs = new HashMap();
+          TaskDefinition taskDefinition = new TaskDefinition();
+          taskDefinition.setName(applicationType + " Account Aggregation " + new Date());
+          taskDefinition.setDescription("Account Aggregation task for " + applicationType);
+          taskDefinition.setType(TaskItemDefinition.Type.AccountAggregation);
+          taskDefinition.setResultAction(TaskDefinition.ResultAction.Delete);
+          taskDefinition.setFormPath("/monitor/tasks/accountAggregationTask.xhtml");
+          taskDefinition.setArgument("applications", applicationNames);
+          taskDefinition.setArgument("checkDeleted", "true");
+          taskDefinition.setArgument("promoteManagedAttributes", "true");
+          taskDefinition.setArgument("logAllowedActions", null);
+          taskDefinition.setOwner(context.getObjectByName(Identity.class, launcher));
+          taskDefinition.setParent(context.getObject(TaskDefinition.class, "Account Aggregation"));
+          context.saveObject(taskDefinition);
+          context.commitTransaction();
+          tm.runWithResult(taskDefinition, taskArgs);
+
+          if (log.isDebugEnabled()) {
+              log.debug("Account aggregation task is executed for the application '" + applicationNames + "'.");
+              log.debug("Exiting executeAccountAggregation()...");
+          }
+      }
+
+      /**
+       * Run Group aggregation task for the multiple IdentityIQ applications
+       * applicationNames comma saperated application names
+      */
+      private void executeGroupAggregation(String applicationNames) throws GeneralException {
+          if (log.isDebugEnabled()) {
+              log.debug("Entering executeGroupAggregation()...");
+          }
+
+          TaskManager tm = new TaskManager(context);
+          HashMap taskArgs = new HashMap();
+          TaskDefinition taskDefinition = new TaskDefinition();
+          taskDefinition.setName(applicationType + " Group Aggregation " + new Date());
+          taskDefinition.setDescription("Group Aggregation task for " + applicationType);
+          taskDefinition.setType(TaskItemDefinition.Type.AccountGroupAggregation);
+          taskDefinition.setArgument("aggregationType", "group");
+          taskDefinition.setFormPath("/monitor/tasks/accountGroupAggregationTask.xhtml");
+          taskDefinition.setArgument("applications", applicationNames);
+          taskDefinition.setArgument("checkDeleted", "true");
+          taskDefinition.setOwner(context.getObjectByName(Identity.class, launcher));
+          taskDefinition.setExecutor("sailpoint.task.ResourceIdentityScan");
+          taskDefinition.setResultRenderer("accountGroupAggregationResult.xhtml"); 
+          taskDefinition.setParent(context.getObject(TaskDefinition.class, "Account Group Aggregation"));
+          context.saveObject(taskDefinition);
+          context.commitTransaction();
+          tm.runWithResult(taskDefinition, taskArgs);
+
+          if (log.isDebugEnabled()) {
+              log.debug("Group aggregation task is executed for the application '" + applicationNames + "'.");
+              log.debug("Exiting executeGroupAggregation()...");
+          }
+      }
+
+      /////////////////// MAIN START /////////////////
+      ////////////////////////////////////////////////
+
+
+      if (log.isDebugEnabled()) {
+          log.debug("Application Builder Rule execution start...");
+      }
+
+      try {
+          // Retriving input parameters
+          filePath = inputParams.get("filePath");
+          applicationType = inputParams.get("applicationType");
+          operation = inputParams.get("operation");
+          triggerAccountAggregation = inputParams.get("triggerAccountAggregation");
+          triggerGroupAggregation = inputParams.get("triggerGroupAggregation");
+          launcher = inputParams.get("launcher");
+          skipTestConnection = inputParams.get("skipTestConnection");
+
+          if (!filePath.endsWith(".csv")) {
+              throw new GeneralException("Invalid input file format '" + filePath + "'. Only CSV format is supported.");
+          }
+
+          if (inputParams.get("applicationsPerAggregation") != null) {
+              try {
+                  if (Integer.parseInt(inputParams.get("applicationsPerAggregation")) > 0) {
+                      applicationsPerAggregation = Integer.parseInt(inputParams.get("applicationsPerAggregation"));
+                  }
+              } catch (NumberFormatException e) {
+                  if (log.isWarnEnabled()) {
+                      log.warn("Invalid value for the attribute 'applicationsPerAggregation'. " + e.getMessage() + ". Considering default value " + applicationsPerAggregation , e);
+                  }
+              }
+          }
+
+          // Update Secrete attribute list as per sailpoint.object.Application 
+          secreteAttributes.add("password");
+          secreteAttributes.add("cmdClientPassword");
+          secreteAttributes.add("adminPassword");
+          secreteAttributes.add("apikey");
+          secreteAttributes.add("kid");
+          secreteAttributes.add("secret");
+          secreteAttributes.add("keystorePwd");
+          secreteAttributes.add("token");
+          secreteAttributes.add("transportUserPassword");
+          secreteAttributes.add("group.password");
+          secreteAttributes.add("accountId");
+          secreteAttributes.add("keystorepassword");
+          secreteAttributes.add("pkeypassword");
+          secreteAttributes.add("admin_password");
+          secreteAttributes.add("SudoUserPassword");
+          secreteAttributes.add("PassphraseForPrivateKey");
+          secreteAttributes.add("passwd");
+
+          // Perform Task based on operation type
+          switch (operation) {
+              case "create":
+                  parseInputFile();
+                  createApplications();
+                  break;
+              case "update":
+                  parseInputFile();
+                  updateApplications();
+                  break;
+              case "read":
+                  updateAttributesMap();
+                  exportApplications();
+                  break;
+              default:
+                  log.debug("Invalid Operation.");
+                  break;
+          }
+      } catch (GeneralException e) {
+          if (log.isErrorEnabled()) {
+              log.error(Message.error("application_builder_task_error", e.getMessage()), e);
+          }
+
+          // Update taskResult object with error details
+          taskResult.setCompletionStatus(TaskResult.CompletionStatus.Error);
+          taskResult.addMessage(Message.error("application_builder_task_error", e.getMessage()));
+      } catch (Exception e) {
+          GeneralException ex = new GeneralException(Message.error("application_builder_task_error", e.getMessage()), e);
+          if (log.isErrorEnabled()) {
+              log.error(ex.getMessage(), ex);
+          }
+
+          // Update taskResult object with error details
+          taskResult.setCompletionStatus(TaskResult.CompletionStatus.Error);
+          taskResult.addMessage(Message.error("application_builder_task_error", e.getMessage()));
+      }
+
+      return taskResult;
+    
+  ]]></Source>
+</Rule>

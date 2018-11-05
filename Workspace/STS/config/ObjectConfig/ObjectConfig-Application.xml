@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ObjectConfig PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<ObjectConfig name="Application">
+  <ObjectAttribute defaultValue="IIQ" displayName="Application Group" editMode="Permanent" extendedNumber="1" name="applicationGroup" required="true">
+    <AllowedValues>
+      <String>IIQ</String>
+      <String>Linux DBA</String>
+      <String>Linux OPS</String>
+      <String>Windows OPS</String>
+      <String>Windows DBA</String>
+    </AllowedValues>
+    <Description>Application group intended to define application sets .
+Application Groups are :
+Windows Server DBA
+Windows Server OPS
+Linux 1
+Linux 2
+IIQ</Description>
+  </ObjectAttribute>
+</ObjectConfig>

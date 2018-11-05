@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE TaskDefinition PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<TaskDefinition formPath="/monitor/tasks/applicationBuilderTask.xhtml" name="STS - Linux Application Builder" resultAction="Delete" subType="task_item_type_generic" type="Generic">
+  <Attributes>
+    <Map>
+      <entry key="TaskDefinition.runLengthAverage" value="0"/>
+      <entry key="TaskDefinition.runLengthTotal" value="0"/>
+      <entry key="TaskDefinition.runs" value="13"/>
+      <entry key="TaskSchedule.host"/>
+      <entry key="applicationType" value="Linux - Direct"/>
+      <entry key="filePath" value="%%STS_LINUX_APPLICATION_BUILDER_CSV_FILE_PATH%%"/>
+      <entry key="operation" value="create"/>
+      <entry key="skipTestConnection" value="true"/>
+      <entry key="taskCompletionEmailNotify" value="Disabled"/>
+      <entry key="taskCompletionEmailRecipients"/>
+      <entry key="taskCompletionEmailTemplate"/>
+      <entry key="triggerAccountAggregation" value="false"/>
+      <entry key="triggerGroupAggregation" value="false"/>
+    </Map>
+  </Attributes>
+  <Description>A task that can be used to Create, Update, Read multiple IdentityIQ application.</Description>
+  <Owner>
+    <Reference class="sailpoint.object.Identity" name="spadmin"/>
+  </Owner>
+  <Parent>
+    <Reference class="sailpoint.object.TaskDefinition" name="Application Builder"/>
+  </Parent>
+</TaskDefinition>

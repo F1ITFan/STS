@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE sailpoint PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<sailpoint>
+<Category name="Host 10" />
+<Category name="Host 101" />
+<Category name="OLAP 1-2-3" />
+<Category name="OLAP 24-27" />
+<Category name="All Windows" />
+<Category name="All Linux" />
+<Category name="ALL" />
+<Category name="MX" />
+<Category name="VMWare Hypervisors" />
+
+</sailpoint>
