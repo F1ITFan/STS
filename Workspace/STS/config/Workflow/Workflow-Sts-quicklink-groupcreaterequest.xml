@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Workflow PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Workflow explicitTransitions="true" libraries="Identity" name="STS-QuickLink-GroupCreateRequest">
+  <Variable initializer="string:true" name="transient"/>
+  <Variable name="groupName"/>
+  <Variable name="targetApps"/>
+  <Variable name="plan"/>
+  <Variable initializer="string:true" name="trace"/>
+  <Description> Batch account request.</Description>
+  <Step icon="Start" name="Start" posX="28" posY="10">
+    <Transition to="UserForm"/>
+  </Step>
+  <Step icon="Message" name="UserForm" posX="115" posY="10">
+    <Approval name="AccessRequest-Input-Form" owner="string:spadmin" return="groupName,targetApps">
+      <Form name="AccessRequest-Input-Form">
+        <Attributes>
+          <Map>
+            <entry key="pageTitle" value="Group Creation"/>
+          </Map>
+        </Attributes>
+        <Button action="next" label="Submit"/>
+        <Button action="cancel" label="Cancel Request"/>
+        <Section label="Instructions" name="userInstructions" type="text">
+          <Field name="Directions" value="This form allows you to create groups into existing servers."/>
+        </Section>
+        <Section columns="2" label="Input Data">
+          <Field displayName="Group Name" multi="true" name="groupName" required="true" type="string"/>
+          <Field displayName="Target Server(s)" multi="true" name="targetApps" required="true" type="application"/>
+        </Section>
+      </Form>
+    </Approval>
+    <Description>Present a form to the user and gather their input. Validate the  requested entitlement entered against our known Entitlement entries internally.</Description>
+    <Transition to="Confirm"/>
+  </Step>
+  <Step icon="Message" name="Confirm" posX="212" posY="10">
+    <Approval name="AccessRequest-Confirm-Form" owner="string:spadmin" send="groupName,targetApps">
+      <Form name="AccessRequest-Confirm-Form">
+        <Attributes>
+          <Map>
+            <entry key="pageTitle" value="Confirm Group Creation"/>
+          </Map>
+        </Attributes>
+        <Button action="next" label="Continue"/>
+        <Button action="cancel" label="Cancel Request"/>
+        <Section columns="2" label="Confirm Group Creation" type="datatable">
+          <Field displayName="Group(s) name(s)" name="groupName" readOnly="true" required="true" type="string" value="ref:groupName"/>
+          <Field displayName="Target Server(s)" multi="true" name="targetApps" readOnly="true" required="true" type="application" value="ref:targetApps"/>
+        </Section>
+      </Form>
+    </Approval>
+    <Description>Present user with a confirmation form before batch access request on target application(s).</Description>
+    <Transition to="Build Plan" when="script:approved"/>
+    <Transition to="Stop"/>
+  </Step>
+  <Step icon="Task" name="Build Plan" posX="276" posY="107" resultVariable="plan">
+    <Description>This step will construct a provisioning plan with the requested entitlement of the target application(s).</Description>
+    <Script>
+      <Source><![CDATA[
+//
+// Imports for Provisioning Plan, Object Request
+//
+
+import sailpoint.object.Application;
+import sailpoint.object.ProvisioningPlan;
+import sailpoint.object.ProvisioningPlan.ObjectRequest ;
+import sailpoint.object.ProvisioningPlan.AttributeRequest;
+import java.util.List;
+import org.apache.log4j.Logger;
+
+
+
+String attrName = "groups",
+       appType  = null;
+//---int     linux_groupID = 5103;
+
+boolean debug = true,
+        proceed = true,
+        provisionLinuxServer = false;
+        
+Logger logger = Logger.getLogger("sts.wf.role_request");
+Application targetApp = null;
+
+logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ] variable 'targetApps' = '" + targetApps.getClass().getName()); 
+logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ] variable 'groupName' = '"  + groupName.getClass().getName()); 
+
+
+ProvisioningPlan plan = new ProvisioningPlan();
+
+  logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ] Starting to build plan..."); 
+
+
+
+for (String appId : targetApps)
+{
+   targetApp = context.getObjectById(Application.class, appId);  
+   
+   //--- determine the Application server type (Windows Server or Linux) ---
+   if (targetApp != null)
+   {
+     appType = targetApp.getType();
+
+     logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ] setApplication = '" + appId + 
+     			  "' appName = '" + targetApp.getName() + 
+   				  "' Type : '" + appType + "'."); 
+     
+     if (appType != null)
+     {
+        if (appType.compareToIgnoreCase("Linux - Direct") == 0)
+           provisionLinuxServer = true;
+        else
+          if (appType.compareToIgnoreCase("Windows Local - Direct") == 0)
+            provisionLinuxServer = false;
+          else
+          {
+             proceed = false;
+		     logger.error("[ WF : STS-QuickLink Step : 'Build Plan' ] Unsupported application type '" +
+		                 appType + "' for Application = '" + targetApp.getName() + "' ! " );
+          }
+     }
+   } 
+   
+
+   if (proceed == true)
+   {
+
+   for (String newGroup : groupName) 
+   {
+      ObjectRequest objectRequest = new ObjectRequest(); 
+       logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ]  Creating Object Request..."); 
+
+      objectRequest.setApplication(new String(targetApp.getName())); 
+      objectRequest.setOp(ProvisioningPlan.ObjectOperation.Create); 
+      objectRequest.setType("group"); 
+
+      logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ] groupName = '" + newGroup + "'"); 
+      
+      if (provisionLinuxServer == false ) //--- we are provisioning a 'Windows Server' ! ---
+      {
+         objectRequest.add(new AttributeRequest("sAMAccountName", newGroup));
+
+          logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ]  Created Object Request for Windws Server ('" + 
+          			   targetApp.getName() + "' : 'sAMAccountName' = '" + newGroup + "')."); 
+      }
+	  else  //--- we are provisioning a 'Linux Server' ! ---
+	  {
+         objectRequest.add(new AttributeRequest("name", newGroup));  //--- Group Name ---
+       //---  objectRequest.add(new AttributeRequest("groupid", linux_groupID)); //--- Group ID ---
+         objectRequest.add(new AttributeRequest("dupgid", false)); //--- Duplicate Group ID ---
+
+          logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ]  Created Object Request for Linux Server ('" + 
+          			   targetApp.getName() + "' : 'Group Name' = '" + newGroup + "'.");
+          			    
+          /*----
+          logger.debug("[ WF : STS-QuickLink Step : 'Build Plan' ]  Created Object Request for Linux Server ('" + 
+          			   targetApp.getName() + "' : 'Group Name' = '" + newGroup + "', 'Group ID' = '" +
+          			   linux_groupID + "')."); 
+          			   
+          linux_groupID ++;
+	  	 ---*/
+	  }
+	  
+      // ObjectRequest created, now add to the Plan
+      plan.addObjectRequest(objectRequest);
+
+   } //--- for groups ---
+  
+  }  //--- if proceed == true ---
+  
+  }  //--- for apps ---
+
+   // Add a requester to the Provisioning Plan
+   plan.addRequester(context.getObjectByName(Identity.class,context.getUserName())); 
+
+  //
+  // output the Provisioning Plan prior to passing off to be provisioned. 
+  //
+
+  if (debug == true) 
+  {
+    logger.debug("Provisioning Plan = \n" + plan.toXml());
+  }
+ 
+//
+// return the plan so it's available in the workflow for later. 
+//
+
+return plan;
+
+
+]]></Source>
+    </Script>
+    <Transition to="Provision Group"/>
+  </Step>
+  <Step icon="Task" name="Provision Group" posX="403" posY="107">
+    <Arg name="trace" value="ref:trace"/>
+    <Arg name="plan" value="ref:plan"/>
+    <Description>Call the "built-in" entitlement update workflow with our calculated plan in order to provision requested Groups on requested 'Servers'.</Description>
+    <WorkflowRef>
+      <Reference class="sailpoint.object.Workflow" name="Entitlement Update"/>
+    </WorkflowRef>
+    <Transition to="Stop"/>
+  </Step>
+  <Step icon="Stop" name="Stop" posX="481" posY="8"/>
+</Workflow>
